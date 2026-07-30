@@ -1,55 +1,62 @@
 rules_version = '2';
 
-// Starter rules for the `deposits` collection.
-//
-// The app currently has no Firebase Auth, so submissions arrive unauthenticated.
-// These rules therefore cannot answer "who is this?" — they can only constrain
-// the shape and size of what gets written. Read the "Security model" section of
-// the README before deploying this to anything holding real customer data.
+// This is a closed internal tool: every read and write requires a signed-in
+// user, and there is exactly one shared account (see src/auth.js). The
+// password on that account is what actually protects this data — these rules
+// only add a second layer (shape validation) on top of that gate.
 //
 // Deploy:  firebase deploy --only firestore:rules
 
 service cloud.firestore {
   match /databases/{database}/documents {
 
-    match /deposits/{depositId} {
+    match /deposits/{docId} {
 
-      function isWellFormed(data) {
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isWellFormedCreate(data) {
         return data.keys().hasOnly([
-                 'firstName', 'nickname', 'phoneNumber',
-                 'depositItem', 'depositAmount', 'timestamp', 'createdAt'
+                 'depositId', 'firstName', 'nickname', 'phoneNumber',
+                 'depositItem', 'depositAmount', 'timestamp',
+                 'createdAtIso', 'updatedAtIso', 'source', 'deletedAt', 'createdAt'
                ])
                && data.keys().hasAll([
-                 'firstName', 'phoneNumber', 'depositItem', 'depositAmount'
+                 'depositId', 'firstName', 'phoneNumber', 'depositItem', 'depositAmount'
                ])
-               && data.firstName is string   && data.firstName.size() <= 100
-               && data.nickname is string    && data.nickname.size() <= 100
-               && data.phoneNumber is string && data.phoneNumber.size() <= 20
-               && data.depositItem is string && data.depositItem.size() <= 300
+               && data.depositId is string    && data.depositId.size() > 0
+               && data.firstName is string    && data.firstName.size() <= 100
+               && data.nickname is string     && data.nickname.size() <= 100
+               && data.phoneNumber is string  && data.phoneNumber.size() <= 20
+               && data.depositItem is string  && data.depositItem.size() <= 300
                && data.depositAmount is number
                && data.depositAmount > 0
                && data.depositAmount <= 10000000
-               && data.timestamp is string   && data.timestamp.size() <= 60;
+               && data.timestamp is string    && data.timestamp.size() <= 60;
       }
 
-      // The public lookup feature requires open reads. Note this exposes every
-      // customer name and phone number to anyone with the Firebase project id.
-      // Gate this behind Firebase Auth if that is not acceptable.
-      allow read: if true;
+      // A record's identity fields never change after creation. Only status
+      // fields (soft delete, sync bookkeeping) may be updated — this is what
+      // lets the web UI "delete" a row without being able to rewrite history,
+      // and what the Sheet-sync webhook uses to update an existing record.
+      function isWellFormedUpdate(data) {
+        let unchanged = ['depositId', 'firstName', 'nickname', 'phoneNumber',
+                          'depositItem', 'depositAmount', 'timestamp',
+                          'createdAtIso', 'source', 'createdAt'];
+        return unchanged.toSet().difference(data.diff(resource.data).affectedKeys()) == unchanged.toSet()
+               || data.diff(resource.data).affectedKeys().hasOnly(['deletedAt', 'updatedAtIso']);
+      }
 
-      // Anyone can file a deposit, but only in the expected shape.
-      allow create: if isWellFormed(request.resource.data);
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isWellFormedCreate(request.resource.data);
+      allow update: if isSignedIn() && isWellFormedUpdate(request.resource.data);
 
-      // Records are append-only: an existing deposit is never edited in place.
-      allow update: if false;
-
-      // Deleting requires a signed-in user. With no Auth wired up yet this
-      // denies every delete, and the dashboard surfaces the failure rather
-      // than pretending the row is gone. See README "Next steps".
-      allow delete: if request.auth != null;
+      // No hard deletes from the client — "delete" is soft (see update rule
+      // above), so a record's id and row position never move.
+      allow delete: if false;
     }
 
-    // Everything outside /deposits is closed.
     match /{document=**} {
       allow read, write: if false;
     }

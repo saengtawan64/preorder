@@ -3,15 +3,10 @@ import './style.css';
 import { createIcons } from 'lucide';
 
 import { appIcons } from './icons.js';
-import {
-  getFirebaseConfig,
-  getSheetCsvUrl,
-  isUsingDefaultPin,
-  saveFirebaseConfig,
-  saveSheetCsvUrl,
-} from './config.js';
-import { fetchDepositsFromSheet, postDepositToSheet } from './sheets.js';
-import { markSynced, persistDeposits, persistLoginState, persistTheme, state } from './state.js';
+import { getFirebaseConfig } from './config.js';
+import { onAuthChange, signIn, signOutUser } from './auth.js';
+import { initFirebase, softDeleteDeposit, subscribeDeposits, addDeposit } from './firebase.js';
+import { persistTheme, resetOnSignOut, state } from './state.js';
 import {
   bangkokTimestamp,
   csvCell,
@@ -25,27 +20,28 @@ import {
 } from './utils.js';
 
 const el = {
+  authGate: document.getElementById('auth-gate'),
+  authGateForm: document.getElementById('auth-gate-form'),
+  authGatePassword: document.getElementById('auth-gate-password'),
+  authGateToggleVis: document.getElementById('auth-gate-toggle-vis'),
+  authGateError: document.getElementById('auth-gate-error'),
+  authGateSubmit: document.getElementById('auth-gate-submit'),
+  appContent: document.getElementById('app-content'),
+
   themeToggleBtn: document.getElementById('theme-toggle-btn'),
   themeIcon: document.getElementById('theme-icon'),
+  switchViewBtn: document.getElementById('switch-view-btn'),
+  viewToggleText: document.getElementById('view-toggle-text'),
+  logoutBtn: document.getElementById('logout-btn'),
 
-  publicView: document.getElementById('public-view'),
-  adminView: document.getElementById('admin-view'),
+  lookupView: document.getElementById('lookup-view'),
+  dashboardView: document.getElementById('dashboard-view'),
 
   publicSearchInput: document.getElementById('public-search-input'),
   publicSearchClear: document.getElementById('public-search-clear'),
   searchResultsSection: document.getElementById('search-results-section'),
   resultsCountBadge: document.getElementById('results-count-badge'),
   resultsCardsGrid: document.getElementById('results-cards-grid'),
-
-  authStatusContainer: document.getElementById('auth-status-container'),
-  loginModal: document.getElementById('login-modal'),
-  closeLoginModalBtn: document.getElementById('close-login-modal-btn'),
-  cancelLoginBtn: document.getElementById('cancel-login-btn'),
-  loginForm: document.getElementById('login-form'),
-  adminPinInput: document.getElementById('admin-pin'),
-  togglePinVisBtn: document.getElementById('toggle-pin-vis'),
-  loginErrorMsg: document.getElementById('login-error-msg'),
-  logoutBtn: document.getElementById('logout-btn'),
 
   contactForm: document.getElementById('contact-form'),
   firstNameInput: document.getElementById('first-name'),
@@ -58,48 +54,20 @@ const el = {
   submittedDetailsBox: document.getElementById('submitted-details-box'),
   resetFormBtn: document.getElementById('reset-form-btn'),
 
+  connectionStatus: document.getElementById('connection-status'),
   groupedDatesContainer: document.getElementById('grouped-dates-container'),
   adminSearchInput: document.getElementById('admin-search-input'),
   adminClearSearchBtn: document.getElementById('admin-clear-search-btn'),
   tableEmptyState: document.getElementById('table-empty-state'),
-  syncNowBtn: document.getElementById('sync-now-btn'),
-  syncSpinIcon: document.getElementById('sync-spin-icon'),
   exportCsvBtn: document.getElementById('export-csv-btn'),
 
   metricTotalAmount: document.getElementById('metric-total-amount'),
   metricTotalCount: document.getElementById('metric-total-count'),
   metricTodayAmount: document.getElementById('metric-today-amount'),
-  metricLastSync: document.getElementById('metric-last-sync'),
-
-  guideModalBtn: document.getElementById('guide-modal-btn'),
-  guideModal: document.getElementById('guide-modal'),
-  closeGuideModalBtn: document.getElementById('close-guide-modal-btn'),
-  closeGuideBtnFooter: document.getElementById('close-guide-btn-footer'),
-  sheetUrlInput: document.getElementById('sheet-url-input'),
-  saveSheetUrlBtn: document.getElementById('save-sheet-url-btn'),
-  urlSaveStatus: document.getElementById('url-save-status'),
-
-  firebaseModalBtn: document.getElementById('firebase-modal-btn'),
-  firebaseModal: document.getElementById('firebase-modal'),
-  closeFirebaseModalBtn: document.getElementById('close-firebase-modal-btn'),
-  closeFirebaseBtnFooter: document.getElementById('close-firebase-btn-footer'),
-  firebaseConfigInput: document.getElementById('firebase-config-input'),
-  saveFirebaseBtn: document.getElementById('save-firebase-btn'),
-  firebaseSaveStatus: document.getElementById('firebase-save-status'),
-
-  sheetStatusBanner: document.getElementById('sheet-status-banner'),
-  sheetStatusText: document.getElementById('sheet-status-text'),
-  configSheetBtnInline: document.getElementById('config-sheet-btn-inline'),
 
   toastContainer: document.getElementById('toast-container'),
 };
 
-/* ---------------------------------------------------------------- icons --- */
-
-/**
- * Replace every `data-lucide` placeholder with its SVG. Called after any render
- * that injects new markup, since Lucide only walks the DOM on demand.
- */
 function refreshIcons() {
   createIcons({ icons: appIcons });
 }
@@ -148,86 +116,88 @@ function toast(message, variant = 'info') {
   }, 3500);
 }
 
-/* ------------------------------------------------------------- firebase --- */
+/* ---------------------------------------------------------------- auth ---- */
 
-/**
- * The Firestore module, loaded on demand.
- *
- * The Firebase SDK is by far the largest dependency here, and a deployment that
- * only uses Google Sheets never needs it — so it is pulled in as a separate
- * chunk the first time a config is actually present.
- */
-let fb = null;
 let unsubscribeDeposits = null;
 
-async function loadFirebaseModule() {
-  if (!fb) fb = await import('./firebase.js');
-  return fb;
+function setConnectionStatus(text, variant = 'ok') {
+  if (!el.connectionStatus) return;
+  el.connectionStatus.className = `status-pill status-pill-${variant}`;
+  el.connectionStatus.innerHTML = `<i data-lucide="${variant === 'error' ? 'alert-triangle' : 'refresh-cw'}"></i><span>${escapeHtml(text)}</span>`;
+  refreshIcons();
 }
 
-async function connectFirebase() {
-  const config = getFirebaseConfig();
-  if (!config) return;
-
-  let mod;
-  try {
-    mod = await loadFirebaseModule();
-  } catch (error) {
-    console.error('Could not load the Firebase module:', error);
-    toast('โหลดโมดูล Firebase ไม่สำเร็จ', 'danger');
-    return;
-  }
-
-  if (!mod.initFirebase(config)) return;
-  state.isFirebaseActive = true;
-
-  if (unsubscribeDeposits) unsubscribeDeposits();
-
-  unsubscribeDeposits = mod.subscribeDeposits((records) => {
-    // Fires for empty snapshots too, so deleting the last record clears the UI.
+function startDepositsFeed() {
+  if (unsubscribeDeposits) return;
+  unsubscribeDeposits = subscribeDeposits((records) => {
     state.deposits = records;
-    persistDeposits();
-    markSynced();
+    setConnectionStatus('เชื่อมต่อสด (real-time)', 'ok');
     renderDashboard();
     renderPublicSearch();
   });
-
-  renderStatusBanner();
 }
 
-/* --------------------------------------------------------- sheet syncing --- */
-
-async function syncFromSheet({ notify = false } = {}) {
-  if (!getSheetCsvUrl()) {
-    if (notify) toast('ยังไม่ได้ตั้งค่า URL ของ Google Sheet', 'warning');
-    return;
+function stopDepositsFeed() {
+  if (unsubscribeDeposits) {
+    unsubscribeDeposits();
+    unsubscribeDeposits = null;
   }
-
-  state.isSyncing = true;
-  el.syncSpinIcon?.classList.add('spin');
-
-  try {
-    const records = await fetchDepositsFromSheet();
-
-    // Firestore is authoritative when it is connected; the sheet is only a
-    // fallback source for deployments without Firebase.
-    if (!state.isFirebaseActive) {
-      state.deposits = records.slice().reverse();
-      persistDeposits();
-    }
-
-    markSynced();
-    if (notify) toast(`ดึงข้อมูลล่าสุดเรียบร้อย (${records.length} รายการ)`, 'success');
-  } catch (error) {
-    console.warn('Sync fetch error:', error);
-    if (notify) toast('ดึงข้อมูลจาก Google Sheet ไม่สำเร็จ กรุณาตรวจสอบ URL', 'danger');
-  } finally {
-    state.isSyncing = false;
-    el.syncSpinIcon?.classList.remove('spin');
-    renderDashboard();
-    renderPublicSearch();
-  }
+  resetOnSignOut();
 }
+
+function showApp() {
+  el.authGate.classList.add('hidden');
+  el.appContent.classList.remove('hidden');
+  startDepositsFeed();
+}
+
+function showGate() {
+  el.appContent.classList.add('hidden');
+  el.authGate.classList.remove('hidden');
+  el.authGatePassword.value = '';
+  el.authGateError.classList.add('hidden');
+  stopDepositsFeed();
+}
+
+onAuthChange((signedIn) => {
+  state.isSignedIn = signedIn;
+  if (signedIn) showApp();
+  else showGate();
+});
+
+el.authGateForm.addEventListener('submit', async (event) => {
+  event.preventDefault();
+
+  const password = el.authGatePassword.value;
+  el.authGateSubmit.disabled = true;
+  el.authGateError.classList.add('hidden');
+
+  const result = await signIn(password);
+
+  el.authGateSubmit.disabled = false;
+
+  if (!result.ok) {
+    const message =
+      result.reason === 'throttled'
+        ? 'พยายามเข้าสู่ระบบผิดหลายครั้งเกินไป กรุณารอสักครู่แล้วลองใหม่'
+        : 'รหัสผ่านไม่ถูกต้อง';
+    el.authGateError.textContent = message;
+    el.authGateError.classList.remove('hidden');
+    el.authGatePassword.value = '';
+    el.authGatePassword.focus();
+  }
+  // On success, onAuthChange fires and shows the app — nothing else to do here.
+});
+
+el.authGateToggleVis.addEventListener('click', () => {
+  const next = el.authGatePassword.getAttribute('type') === 'password' ? 'text' : 'password';
+  el.authGatePassword.setAttribute('type', next);
+});
+
+el.logoutBtn.addEventListener('click', async () => {
+  await signOutUser();
+  toast('ออกจากระบบเรียบร้อยแล้ว', 'info');
+});
 
 /* -------------------------------------------------------- public search --- */
 
@@ -320,12 +290,8 @@ function renderMetrics() {
   el.metricTotalAmount.innerText = formatBaht(sumAmounts(state.deposits));
   el.metricTotalCount.innerText = `${state.deposits.length} รายการ`;
 
-  // Compare the whole date portion. Matching on a substring of the date would
-  // also catch 11/7 and 21/7 when today is 1/7.
   const todayRecords = state.deposits.filter((record) => datePart(record.timestamp) === today);
   el.metricTodayAmount.innerText = formatBaht(sumAmounts(todayRecords));
-
-  el.metricLastSync.innerText = state.lastSyncTime || 'ยังไม่อัปเดต';
 }
 
 function groupByDate(records) {
@@ -337,7 +303,6 @@ function groupByDate(records) {
     groups.get(key).push(record);
   }
 
-  // Newest day first; unparseable dates sink to the bottom.
   return [...groups.entries()].sort(([a], [b]) => {
     const keyA = dateSortKey(a);
     const keyB = dateSortKey(b);
@@ -455,114 +420,34 @@ el.groupedDatesContainer.addEventListener('click', async (event) => {
   const id = deleteBtn.getAttribute('data-id');
   if (!confirm('คุณต้องการลบรายการมัดจำนี้ใช่หรือไม่?')) return;
 
-  // Firestore ids are strings; sheet and local-only rows are not deletable
-  // upstream, so those are only dropped from the local cache.
-  if (state.isFirebaseActive && typeof id === 'string' && !id.startsWith('sheet-')) {
-    const deleted = await fb.deleteDeposit(id);
-    if (!deleted) {
-      toast('ลบรายการบน Firebase ไม่สำเร็จ', 'danger');
-      return;
-    }
-    // The snapshot listener re-renders with the record gone.
-    toast('ลบรายการมัดจำเรียบร้อยแล้ว', 'info');
+  const deleted = await softDeleteDeposit(id);
+  if (!deleted) {
+    toast('ลบรายการไม่สำเร็จ', 'danger');
     return;
   }
-
-  state.deposits = state.deposits.filter((record) => String(record.id) !== String(id));
-  persistDeposits();
-  renderDashboard();
-  renderPublicSearch();
-  toast('ลบรายการออกจากเครื่องนี้แล้ว (ข้อมูลต้นทางไม่ถูกแก้)', 'info');
+  // The snapshot listener re-renders with the record gone.
+  toast('ลบรายการมัดจำเรียบร้อยแล้ว', 'info');
 });
 
-/* ------------------------------------------------------------ auth view --- */
-
-function renderAuthUi() {
-  if (state.isAdminLoggedIn) {
-    el.authStatusContainer.innerHTML = `
-      <button id="switch-view-btn" class="btn btn-secondary">
-        <i data-lucide="refresh-cw"></i>
-        <span id="view-toggle-text">ไปที่หน้าค้นหา / บันทึกมัดจำ</span>
-      </button>
-    `;
-    el.publicView.classList.add('hidden');
-    el.adminView.classList.remove('hidden');
-    document.getElementById('switch-view-btn')?.addEventListener('click', toggleView);
-  } else {
-    el.authStatusContainer.innerHTML = `
-      <button id="open-login-btn" class="btn btn-primary">
-        <i data-lucide="lock"></i>
-        <span>เข้าสู่ระบบ Admin</span>
-      </button>
-    `;
-    el.publicView.classList.remove('hidden');
-    el.adminView.classList.add('hidden');
-    document.getElementById('open-login-btn')?.addEventListener('click', openLoginModal);
-  }
-
-  refreshIcons();
-}
+/* ------------------------------------------------------------ view toggle --- */
 
 function toggleView() {
-  const showingPublic = !el.publicView.classList.contains('hidden');
-  const label = document.getElementById('view-toggle-text');
+  const showingLookup = !el.lookupView.classList.contains('hidden');
 
-  if (showingPublic) {
-    el.publicView.classList.add('hidden');
-    el.adminView.classList.remove('hidden');
-    if (label) label.innerText = 'ไปที่หน้าค้นหา / บันทึกมัดจำ';
+  if (showingLookup) {
+    el.lookupView.classList.add('hidden');
+    el.dashboardView.classList.remove('hidden');
+    el.viewToggleText.innerText = 'ไปที่หน้าค้นหา / บันทึกมัดจำ';
   } else {
-    el.adminView.classList.add('hidden');
-    el.publicView.classList.remove('hidden');
-    if (label) label.innerText = 'ไปที่หน้าแดชบอร์ด Admin';
+    el.dashboardView.classList.add('hidden');
+    el.lookupView.classList.remove('hidden');
+    el.viewToggleText.innerText = 'ไปที่หน้าแดชบอร์ด';
   }
 
   refreshIcons();
 }
 
-function openLoginModal() {
-  el.loginModal.classList.remove('hidden');
-  el.adminPinInput.value = '';
-  el.loginErrorMsg.classList.add('hidden');
-  el.adminPinInput.focus();
-}
-
-function closeLoginModal() {
-  el.loginModal.classList.add('hidden');
-}
-
-el.loginForm.addEventListener('submit', (event) => {
-  event.preventDefault();
-
-  if (el.adminPinInput.value.trim() !== state.adminPin) {
-    el.loginErrorMsg.classList.remove('hidden');
-    toast('รหัส PIN ไม่ถูกต้อง', 'danger');
-    return;
-  }
-
-  state.isAdminLoggedIn = true;
-  persistLoginState();
-  closeLoginModal();
-  renderAuthUi();
-  renderDashboard();
-  toast('เข้าสู่ระบบ Admin สำเร็จ!', 'success');
-
-  if (isUsingDefaultPin()) {
-    toast('ยังใช้ PIN เริ่มต้น (1234) — ควรตั้งค่า VITE_ADMIN_PIN ก่อนใช้งานจริง', 'warning');
-  }
-});
-
-el.logoutBtn.addEventListener('click', () => {
-  state.isAdminLoggedIn = false;
-  persistLoginState();
-  renderAuthUi();
-  toast('ออกจากระบบเรียบร้อยแล้ว', 'info');
-});
-
-el.togglePinVisBtn.addEventListener('click', () => {
-  const next = el.adminPinInput.getAttribute('type') === 'password' ? 'text' : 'password';
-  el.adminPinInput.setAttribute('type', next);
-});
+el.switchViewBtn.addEventListener('click', toggleView);
 
 /* ----------------------------------------------------------------- form --- */
 
@@ -579,7 +464,7 @@ el.contactForm.addEventListener('submit', async (event) => {
   }
 
   const record = {
-    id: Date.now(),
+    depositId: crypto.randomUUID(),
     firstName: el.firstNameInput.value.trim().split(/\s+/)[0],
     nickname: el.nicknameInput.value.trim(),
     phoneNumber: formatPhone(el.phoneNumberInput.value.trim()),
@@ -591,30 +476,16 @@ el.contactForm.addEventListener('submit', async (event) => {
   const submitLabel = el.submitBtn.querySelector('span');
   const originalLabel = submitLabel.innerText;
   el.submitBtn.disabled = true;
-  submitLabel.innerText = 'กำลังบันทึกลง Firebase & Sheets...';
+  submitLabel.innerText = 'กำลังบันทึก...';
 
-  let firestoreId = false;
-  if (state.isFirebaseActive) {
-    firestoreId = await fb.addDeposit(record);
-  }
-  const sheetOk = await postDepositToSheet(record);
+  const firestoreId = await addDeposit(record);
 
   el.submitBtn.disabled = false;
   submitLabel.innerText = originalLabel;
 
-  // A configured Firestore that rejects the write is a real failure — the
-  // record would exist only on this device. Say so instead of showing success.
-  if (state.isFirebaseActive && !firestoreId) {
-    toast('บันทึกลง Firebase ไม่สำเร็จ กรุณาลองอีกครั้ง', 'danger');
+  if (!firestoreId) {
+    toast('บันทึกข้อมูลไม่สำเร็จ กรุณาลองอีกครั้ง', 'danger');
     return;
-  }
-
-  if (firestoreId) {
-    record.id = firestoreId;
-  } else {
-    // No Firestore: keep the record locally so it is at least visible here.
-    state.deposits.unshift(record);
-    persistDeposits();
   }
 
   el.submittedDetailsBox.innerHTML = `
@@ -638,11 +509,7 @@ el.contactForm.addEventListener('submit', async (event) => {
 
   el.contactForm.parentElement.classList.add('hidden');
   el.submissionSuccessCard.classList.remove('hidden');
-
-  toast(
-    sheetOk ? 'บันทึกข้อมูลสำเร็จ (ส่งลง Firebase และ Google Sheet เรียบร้อย)' : 'บันทึกข้อมูลสำเร็จ',
-    'success',
-  );
+  toast('บันทึกข้อมูลสำเร็จ', 'success');
 
   renderDashboard();
   renderPublicSearch();
@@ -697,7 +564,6 @@ el.exportCsvBtn.addEventListener('click', () => {
       .join(','),
   );
 
-  // BOM so Excel opens the Thai text as UTF-8.
   const csv = '﻿' + [header, ...lines].join('\r\n') + '\r\n';
   const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv;charset=utf-8;' }));
   const link = document.createElement('a');
@@ -712,142 +578,24 @@ el.exportCsvBtn.addEventListener('click', () => {
   toast('ส่งออกไฟล์ CSV เรียบร้อยแล้ว', 'success');
 });
 
-/* --------------------------------------------------------------- status --- */
-
-function renderStatusBanner() {
-  if (state.isFirebaseActive) {
-    el.sheetStatusBanner.className = 'status-banner banner-success';
-    el.sheetStatusText.innerText =
-      'เชื่อมต่อ Firebase Firestore แบบ Real-time เรียบร้อยแล้ว';
-    return;
-  }
-
-  if (getSheetCsvUrl()) {
-    el.sheetStatusBanner.className = 'status-banner banner-success';
-    el.sheetStatusText.innerText =
-      'เชื่อมต่อกับ Google Sheet เรียบร้อยแล้ว (ตั้งค่า Firebase เพิ่มเพื่อใช้งาน Real-time)';
-    return;
-  }
-
-  el.sheetStatusBanner.className = 'status-banner banner-warning';
-  el.sheetStatusText.innerText =
-    'ยังไม่ได้ตั้งค่าแหล่งข้อมูล — กรุณาตั้งค่า Firebase หรือ Google Sheet CSV URL';
-}
-
 /* --------------------------------------------------------------- modals --- */
-
-function openModal(modal) {
-  modal.classList.remove('hidden');
-}
-
-function closeModal(modal) {
-  modal.classList.add('hidden');
-}
-
-el.guideModalBtn.addEventListener('click', () => {
-  el.sheetUrlInput.value = getSheetCsvUrl();
-  openModal(el.guideModal);
-});
-el.configSheetBtnInline.addEventListener('click', () => {
-  el.sheetUrlInput.value = getSheetCsvUrl();
-  openModal(el.guideModal);
-});
-el.closeGuideModalBtn.addEventListener('click', () => closeModal(el.guideModal));
-el.closeGuideBtnFooter.addEventListener('click', () => closeModal(el.guideModal));
-
-el.saveSheetUrlBtn.addEventListener('click', () => {
-  saveSheetCsvUrl(el.sheetUrlInput.value.trim());
-
-  el.urlSaveStatus.classList.remove('hidden');
-  setTimeout(() => el.urlSaveStatus.classList.add('hidden'), 3000);
-
-  renderStatusBanner();
-  syncFromSheet({ notify: true });
-  toast('บันทึกการตั้งค่า URL ชีตเรียบร้อยแล้ว!', 'success');
-});
-
-el.firebaseModalBtn?.addEventListener('click', () => {
-  const config = getFirebaseConfig();
-  if (config) el.firebaseConfigInput.value = JSON.stringify(config, null, 2);
-  openModal(el.firebaseModal);
-});
-el.closeFirebaseModalBtn?.addEventListener('click', () => closeModal(el.firebaseModal));
-el.closeFirebaseBtnFooter?.addEventListener('click', () => closeModal(el.firebaseModal));
-
-/**
- * Accept either a JSON object or a pasted `const firebaseConfig = {...};`
- * snippet copied straight out of the Firebase console.
- */
-function parseFirebaseConfigInput(text) {
-  const trimmed = text.trim();
-  if (!trimmed) return null;
-
-  if (trimmed.startsWith('{')) return JSON.parse(trimmed);
-
-  const body = trimmed
-    .replace(/^\s*(const|let|var)\s+\w+\s*=\s*/, '')
-    .replace(/;\s*$/, '')
-    .trim();
-
-  const jsonish = body
-    .replace(/'/g, '"')
-    .replace(/([{,]\s*)([A-Za-z0-9_]+)\s*:/g, '$1"$2":')
-    .replace(/,(\s*})/g, '$1');
-
-  return JSON.parse(jsonish);
-}
-
-el.saveFirebaseBtn?.addEventListener('click', () => {
-  let config;
-  try {
-    config = parseFirebaseConfigInput(el.firebaseConfigInput.value);
-  } catch (error) {
-    console.error(error);
-    toast('กรุณาตรวจสอบรูปแบบ Firebase Config ที่วาง', 'danger');
-    return;
-  }
-
-  if (!config || !config.projectId) {
-    toast('รูปแบบ Firebase Config ไม่ถูกต้อง (ไม่พบ projectId)', 'danger');
-    return;
-  }
-
-  saveFirebaseConfig(config);
-
-  el.firebaseSaveStatus.classList.remove('hidden');
-  setTimeout(() => el.firebaseSaveStatus.classList.add('hidden'), 3000);
-
-  connectFirebase();
-  renderStatusBanner();
-  toast('บันทึกการตั้งค่า Firebase เรียบร้อยแล้ว!', 'success');
-});
-
-/* Close a modal by clicking its backdrop or pressing Escape. */
-for (const modal of [el.loginModal, el.guideModal, el.firebaseModal]) {
-  modal.addEventListener('click', (event) => {
-    if (event.target === modal) closeModal(modal);
-  });
-}
 
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
-  for (const modal of [el.loginModal, el.guideModal, el.firebaseModal]) {
-    closeModal(modal);
-  }
+  // No modals left to close, but kept as a hook for future ones.
 });
 
-el.closeLoginModalBtn.addEventListener('click', closeLoginModal);
-el.cancelLoginBtn.addEventListener('click', closeLoginModal);
 el.themeToggleBtn.addEventListener('click', toggleTheme);
-el.syncNowBtn.addEventListener('click', () => syncFromSheet({ notify: true }));
 
 /* ------------------------------------------------------------------ init --- */
 
+const firebaseConfig = getFirebaseConfig();
+if (!firebaseConfig) {
+  console.error('VITE_FIREBASE_PROJECT_ID is not set — the app cannot start without Firebase.');
+  setConnectionStatus('ยังไม่ได้ตั้งค่า Firebase', 'error');
+} else {
+  initFirebase(firebaseConfig);
+}
+
 applyTheme();
-renderAuthUi();
-connectFirebase();
-renderStatusBanner();
-renderDashboard();
-renderPublicSearch();
 refreshIcons();
-syncFromSheet();

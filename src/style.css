@@ -994,3 +994,55 @@ textarea#firebase-config-input:focus {
   align-items: center;
   gap: .4rem
 }
+
+/* --------------------------------------------------------- auth gate --- */
+.auth-gate {
+  min-height: 100vh;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem
+}
+.auth-gate-card {
+  width: 100%;
+  max-width: 400px;
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+  padding: 2.5rem 2rem;
+  text-align: center
+}
+.auth-gate-icon {
+  width: 56px;
+  height: 56px;
+  margin: 0 auto 1.25rem;
+  font-size: 1.5rem
+}
+.auth-gate-card h1 {
+  font-size: 1.35rem;
+  margin-bottom: .5rem
+}
+.auth-gate-card .form-group {
+  text-align: left;
+  margin: 1.5rem 0 1.25rem
+}
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: .5rem;
+  padding: .5rem 1rem;
+  border-radius: var(--radius-full);
+  font-size: .85rem;
+  font-weight: 500
+}
+.status-pill-ok {
+  background: var(--success-bg);
+  color: var(--success-color);
+  border: 1px solid rgba(16, 185, 129, .3)
+}
+.status-pill-error {
+  background: var(--danger-bg);
+  color: var(--danger-color);
+  border: 1px solid rgba(239, 68, 68, .3)
+}
