@@ -1,0 +1,405 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ระบบจัดเก็บและตรวจสอบมัดจำสินค้า | Firebase & Cloudflare Enterprise</title>
+  <meta name="description" content="ระบบบันทึกและตรวจสอบข้อมูลมัดจำสินค้า ความปลอดภัยสูงด้วย Firebase Firestore & Cloudflare Pages" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+  <!-- Fonts: Prompt & Kanit for Thai -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  
+  <script type="module" src="/src/main.js"></script>
+</head>
+<body>
+  <div id="app">
+    <!-- Navbar Header -->
+    <header class="navbar">
+      <div class="nav-container">
+        <div class="brand">
+          <div class="brand-icon">
+            <i data-lucide="shield-check"></i>
+          </div>
+          <div class="brand-text">
+            <h1>DepositTracker <span class="badge-cf"><i data-lucide="cloud"></i> Cloudflare</span></h1>
+            <span class="brand-tag"><i data-lucide="flame"></i> Powered by Firebase Firestore</span>
+          </div>
+        </div>
+
+        <div class="nav-actions">
+          <button id="theme-toggle-btn" class="btn-icon" title="เปลี่ยนธีม">
+            <i data-lucide="sun" id="theme-icon"></i>
+          </button>
+          
+          <button id="firebase-modal-btn" class="btn btn-outline btn-firebase">
+            <i data-lucide="flame"></i>
+            <span>ตั้งค่า Firebase</span>
+          </button>
+
+          <button id="guide-modal-btn" class="btn btn-outline">
+            <i data-lucide="file-spreadsheet"></i>
+            <span>ตั้งค่า Google Sheets</span>
+          </button>
+
+          <div id="auth-status-container">
+            <button id="open-login-btn" class="btn btn-primary">
+              <i data-lucide="lock"></i>
+              <span>เข้าสู่ระบบ Admin</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="main-container">
+      
+      <!-- PUBLIC LOOKUP & DEPOSIT SUBMISSION VIEW -->
+      <section id="public-view" class="view-section active">
+        
+        <!-- Quick Lookup / Search Bar Banner -->
+        <div class="search-hero-card">
+          <div class="hero-header">
+            <h2><i data-lucide="search"></i> ตรวจสอบข้อมูลการมัดจำสินค้า (Real-time Cloud)</h2>
+            <p>พิมพ์ **ชื่อ, ชื่อเล่น หรือเบอร์โทรศัพท์** เพื่อค้นหาวันที่ สินค้าที่มัดจำ และยอดเงินมัดจำทันที</p>
+          </div>
+
+          <div class="main-search-wrapper">
+            <div class="search-input-box">
+              <i data-lucide="search" class="search-icon"></i>
+              <input type="text" id="public-search-input" placeholder="ค้นหาด้วย ชื่อ, ชื่อเล่น หรือ เบอร์โทรศัพท์..." autocomplete="off" />
+              <button id="public-search-clear" class="btn-clear hidden">&times;</button>
+            </div>
+          </div>
+        </div>
+
+        <!-- Search Results / Deposit Cards Container -->
+        <div id="search-results-section" class="search-results-container hidden">
+          <div class="results-header">
+            <h3><i data-lucide="list-filter"></i> ผลการค้นหาข้อมูลมัดจำ</h3>
+            <span id="results-count-badge" class="badge badge-info">พบ 0 รายการ</span>
+          </div>
+          
+          <div id="results-cards-grid" class="deposit-cards-grid">
+            <!-- Dynamic Result Cards -->
+          </div>
+        </div>
+
+        <hr class="divider" />
+
+        <!-- Form Section -->
+        <div class="card form-card margin-top-lg">
+          <div class="card-header">
+            <h3><i data-lucide="plus-circle"></i> แบบฟอร์มเพิ่มรายการมัดจำใหม่</h3>
+            <span class="badge badge-success"><i data-lucide="shield-check"></i> บันทึกลง Firebase & Sheets</span>
+          </div>
+
+          <form id="contact-form" autocomplete="off">
+            <div class="form-grid">
+              
+              <!-- First Name -->
+              <div class="form-group">
+                <label for="first-name">
+                  <i data-lucide="user"></i> ชื่อจริง <span class="required">*</span>
+                </label>
+                <div class="input-wrapper">
+                  <input type="text" id="first-name" name="firstName" placeholder="เช่น สมชาย" required />
+                </div>
+              </div>
+
+              <!-- Nickname -->
+              <div class="form-group">
+                <label for="nickname">
+                  <i data-lucide="smile"></i> ชื่อเล่น <span class="required">*</span>
+                </label>
+                <div class="input-wrapper">
+                  <input type="text" id="nickname" name="nickname" placeholder="เช่น ชาย" required />
+                </div>
+              </div>
+
+              <!-- Phone Number -->
+              <div class="form-group full-width">
+                <label for="phone-number">
+                  <i data-lucide="phone"></i> เบอร์โทรลูกค้า <span class="required">*</span>
+                </label>
+                <div class="input-wrapper">
+                  <input type="tel" id="phone-number" name="phoneNumber" placeholder="08X-XXX-XXXX" maxlength="12" required />
+                </div>
+                <small class="input-hint">เบอร์โทรศัพท์ 10 หลัก</small>
+              </div>
+
+              <!-- Deposit Product / Item Name -->
+              <div class="form-group">
+                <label for="deposit-item">
+                  <i data-lucide="package"></i> สินค้าที่มัดจำ <span class="required">*</span>
+                </label>
+                <div class="input-wrapper">
+                  <input type="text" id="deposit-item" name="depositItem" placeholder="เช่น กระเป๋าหนัง, โทรศัพท์ iPhone 15" required />
+                </div>
+              </div>
+
+              <!-- Deposit Amount in Baht -->
+              <div class="form-group">
+                <label for="deposit-amount">
+                  <i data-lucide="coins"></i> ยอดมัดจำ (บาท) <span class="required">*</span>
+                </label>
+                <div class="input-wrapper">
+                  <input type="number" id="deposit-amount" name="depositAmount" placeholder="เช่น 500 หรือ 2000" min="1" step="any" required />
+                </div>
+              </div>
+
+            </div>
+
+            <!-- Notice Box -->
+            <div class="pdpa-notice-box">
+              <div class="pdpa-icon"><i data-lucide="shield-alert"></i></div>
+              <div class="pdpa-text">
+                <strong>ความปลอดภัยสูงสุด (Firebase + Cloudflare Protection):</strong>
+                จัดเก็บข้อมูลปลอดภัยในระบบคลาวด์มาตรฐานองค์กร พร้อมระบบป้องกัน DDoS และเข้ารหัสข้อมูล 100%
+              </div>
+            </div>
+
+            <div class="form-actions">
+              <button type="submit" id="submit-btn" class="btn btn-primary btn-block btn-lg">
+                <i data-lucide="send"></i>
+                <span>บันทึกรายการมัดจำ (Firebase & Sheets)</span>
+              </button>
+            </div>
+          </form>
+        </div>
+
+        <div id="submission-success-card" class="card success-card hidden">
+          <div class="success-icon"><i data-lucide="check-circle-2"></i></div>
+          <h3>บันทึกข้อมูลมัดจำเรียบร้อยแล้ว!</h3>
+          <p>ข้อมูลถูกส่งเข้าสู่ระบบ Firebase Cloud และ Google Sheets เรียบร้อยแล้ว</p>
+          <div class="submitted-details" id="submitted-details-box"></div>
+          <button id="reset-form-btn" class="btn btn-outline margin-top">
+            <i data-lucide="plus-circle"></i> เพิ่มรายการมัดจำอื่นอีก
+          </button>
+        </div>
+      </section>
+
+      <!-- ADMIN DASHBOARD VIEW (PROTECTED) -->
+      <section id="admin-view" class="view-section hidden">
+        
+        <div class="dashboard-header">
+          <div>
+            <h2><i data-lucide="layout-dashboard"></i> แดชบอร์ดจัดการข้อมูลมัดจำ (Admin)</h2>
+            <p class="text-muted">ข้อมูลรายการมัดจำ Real-time บน Firebase และ Google Sheets</p>
+          </div>
+          <div class="dashboard-actions">
+            <button id="sync-now-btn" class="btn btn-secondary">
+              <i data-lucide="refresh-cw" id="sync-spin-icon"></i>
+              <span>ดึงข้อมูลล่าสุด</span>
+            </button>
+            <button id="logout-btn" class="btn btn-danger btn-outline">
+              <i data-lucide="log-out"></i>
+              <span>ออกจากระบบ</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Sync & Security Status Banner -->
+        <div id="sheet-status-banner" class="status-banner banner-success">
+          <i data-lucide="shield-check"></i>
+          <span id="sheet-status-text">ระบบเชื่อมต่อกับ Google Sheet และพร้อมใช้งานบน Cloudflare Pages</span>
+          <button id="config-sheet-btn-inline" class="btn btn-xs btn-primary">ดูการตั้งค่า</button>
+        </div>
+
+        <!-- Metrics Cards -->
+        <div class="metrics-grid">
+          <div class="metric-card">
+            <div class="metric-icon icon-green"><i data-lucide="wallet"></i></div>
+            <div class="metric-content">
+              <span class="metric-label">ยอดเงินมัดจำรวมทั้งหมด</span>
+              <h3 id="metric-total-amount" class="metric-value text-success">฿0</h3>
+            </div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-icon icon-blue"><i data-lucide="package-check"></i></div>
+            <div class="metric-content">
+              <span class="metric-label">จำนวนรายการมัดจำ</span>
+              <h3 id="metric-total-count" class="metric-value">0 รายการ</h3>
+            </div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-icon icon-purple"><i data-lucide="calendar-check"></i></div>
+            <div class="metric-content">
+              <span class="metric-label">ยอดมัดจำวันนี้</span>
+              <h3 id="metric-today-amount" class="metric-value">฿0</h3>
+            </div>
+          </div>
+
+          <div class="metric-card">
+            <div class="metric-icon icon-amber"><i data-lucide="clock"></i></div>
+            <div class="metric-content">
+              <span class="metric-label">อัปเดตล่าสุด</span>
+              <h3 id="metric-last-sync" class="metric-value text-sm">ยังไม่อัปเดต</h3>
+            </div>
+          </div>
+        </div>
+
+        <!-- Grouped By Date Main Container -->
+        <div class="card table-card">
+          <div class="table-toolbar">
+            <div class="search-box">
+              <i data-lucide="search"></i>
+              <input type="text" id="admin-search-input" placeholder="ค้นหา ชื่อ, ชื่อเล่น, เบอร์โทร, หรือสินค้า..." />
+              <button id="admin-clear-search-btn" class="btn-clear hidden">&times;</button>
+            </div>
+            
+            <div class="toolbar-buttons">
+              <button id="export-csv-btn" class="btn btn-outline btn-sm">
+                <i data-lucide="download"></i> ส่งออก CSV
+              </button>
+            </div>
+          </div>
+
+          <div id="grouped-dates-container">
+            <!-- Rendered via JS -->
+          </div>
+
+          <div id="table-empty-state" class="empty-state hidden">
+            <i data-lucide="inbox"></i>
+            <p>ไม่พบข้อมูลรายการมัดจำ</p>
+          </div>
+
+        </div>
+
+      </section>
+
+    </main>
+
+    <!-- ADMIN LOGIN MODAL -->
+    <div id="login-modal" class="modal-overlay hidden">
+      <div class="modal-card">
+        <div class="modal-header">
+          <h3><i data-lucide="lock-keyhole"></i> เข้าสู่ระบบผู้ดูแลระบบ (Admin)</h3>
+          <button id="close-login-modal-btn" class="btn-icon-sm">&times;</button>
+        </div>
+        <form id="login-form">
+          <div class="modal-body">
+            <p class="modal-desc">กรุณากรอกรหัสผ่าน Admin PIN เพื่อเข้าสู่ระบบ</p>
+
+            <div class="form-group">
+              <label for="admin-pin"><i data-lucide="key-round"></i> รหัส PIN (เริ่มต้น: 1234)</label>
+              <div class="input-wrapper">
+                <input type="password" id="admin-pin" placeholder="••••" maxlength="10" required />
+                <button type="button" id="toggle-pin-vis" class="btn-icon-inside">
+                  <i data-lucide="eye"></i>
+                </button>
+              </div>
+              <small id="login-error-msg" class="error-msg hidden">รหัส PIN ไม่ถูกต้อง</small>
+            </div>
+          </div>
+          <div class="modal-footer">
+            <button type="button" id="cancel-login-btn" class="btn btn-outline">ยกเลิก</button>
+            <button type="submit" class="btn btn-primary">
+              <i data-lucide="log-in"></i> เข้าสู่ระบบ
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- FIREBASE SETUP MODAL -->
+    <div id="firebase-modal" class="modal-overlay hidden">
+      <div class="modal-card modal-lg">
+        <div class="modal-header">
+          <h3><i data-lucide="flame" class="text-amber"></i> ตั้งค่า Firebase Cloud Database</h3>
+          <button id="close-firebase-modal-btn" class="btn-icon-sm">&times;</button>
+        </div>
+        <div class="modal-body modal-scroll">
+          <div class="config-url-section">
+            <h4><i data-lucide="key"></i> วาง Firebase Configuration Object</h4>
+            <p class="text-sm">นำค่า `firebaseConfig` จาก Firebase Console มาวางในช่องนี้เพื่อเปิดใช้งาน Real-time Database:</p>
+            <div class="form-group margin-top">
+              <textarea id="firebase-config-input" rows="6" placeholder='{
+  "apiKey": "AIzaSy...",
+  "authDomain": "your-app.firebaseapp.com",
+  "projectId": "your-app",
+  "storageBucket": "your-app.appspot.com",
+  "messagingSenderId": "123456789",
+  "appId": "1:123456789:web:abcdef"
+}'></textarea>
+            </div>
+            <button id="save-firebase-btn" class="btn btn-primary margin-top">
+              <i data-lucide="save"></i> บันทึกการตั้งค่า Firebase
+            </button>
+            <small id="firebase-save-status" class="text-success hidden">บันทึกตั้งค่า Firebase เรียบร้อยแล้ว!</small>
+          </div>
+
+          <hr class="divider" />
+
+          <div class="guide-steps-section">
+            <h4><i data-lucide="list-checks"></i> วิธีสร้าง Firebase Project ฟรี 3 ขั้นตอน</h4>
+            <ol class="steps-list">
+              <li>ไปที่เว็บ <a href="https://console.firebase.google.com" target="_blank" rel="noopener">console.firebase.google.com</a> แล้วเข้าสู่ระบบด้วย Google Account</li>
+              <li>กด <strong>Add Project (สร้างโปรเจกต์)</strong> ตั้งชื่อแล้วกด Continue จนสร้างเสร็จ</li>
+              <li>ที่หน้า Dashboard เลือกไอคอนเว็บ <strong>Web (&lt;/&gt;)</strong> ตั้งชื่อแอป แล้วคัดลอกส่วน <code>const firebaseConfig = { ... };</code> มาวางในช่องด้านบนแล้วกดบันทึก</li>
+            </ol>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="close-firebase-btn-footer" class="btn btn-primary">ปิดหน้าต่าง</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- GOOGLE SHEETS MODAL -->
+    <div id="guide-modal" class="modal-overlay hidden">
+      <div class="modal-card modal-lg">
+        <div class="modal-header">
+          <h3><i data-lucide="file-spreadsheet"></i> ดาวน์โหลดชีต & ตั้งค่า Google Sheets</h3>
+          <button id="close-guide-modal-btn" class="btn-icon-sm">&times;</button>
+        </div>
+        <div class="modal-body modal-scroll">
+
+          <div class="download-template-card">
+            <div class="template-info">
+              <h4><i data-lucide="file-down"></i> ดาวน์โหลดไฟล์ชีตตั้งต้น (Deposit Sheet Template)</h4>
+              <p class="text-sm">ดาวน์โหลดไฟล์ตารางตั้งต้นนี้เพื่อไปนำเข้า (Import) ใน Google Sheets ได้ทันที!</p>
+            </div>
+            <a href="/Deposit_Sheet_Template.csv" download="Deposit_Sheet_Template.csv" class="btn btn-primary">
+              <i data-lucide="download"></i> ดาวน์โหลดไฟล์ชีต (.CSV)
+            </a>
+          </div>
+
+          <hr class="divider" />
+
+          <div class="config-url-section">
+            <h4><i data-lucide="link"></i> ตั้งค่า Web App / CSV URL จาก Google Sheets</h4>
+            <div class="url-input-group">
+              <input type="url" id="sheet-url-input" placeholder="https://docs.google.com/spreadsheets/d/e/.../pub?output=csv" />
+              <button id="save-sheet-url-btn" class="btn btn-primary">
+                <i data-lucide="save"></i> บันทึก URL
+              </button>
+            </div>
+            <small id="url-save-status" class="text-success hidden">บันทึก URL เรียบร้อยแล้ว!</small>
+          </div>
+
+        </div>
+        <div class="modal-footer">
+          <button type="button" id="close-guide-btn-footer" class="btn btn-primary">เข้าใจแล้ว ปิดหน้าต่าง</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Toast Container -->
+    <div id="toast-container" class="toast-container"></div>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <div class="footer-container">
+        <p>&copy; 2026 Deposit Tracker — ปลอดภัยสูงสุดด้วย Firebase Firestore & Cloudflare Pages</p>
+      </div>
+    </footer>
+  </div>
+
+</body>
+</html>

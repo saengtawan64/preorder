@@ -1,0 +1,19 @@
+{
+  "name": "deposit-tracker",
+  "version": "1.0.0",
+  "private": true,
+  "description": "ระบบจัดเก็บและตรวจสอบมัดจำสินค้า — Firebase Firestore + Google Sheets, deployed on Cloudflare Pages",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview"
+  },
+  "dependencies": {
+    "firebase": "^12.16.0",
+    "lucide": "^1.28.0"
+  },
+  "devDependencies": {
+    "vite": "^8.1.5"
+  }
+}
