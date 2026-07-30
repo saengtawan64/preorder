@@ -1,0 +1,15 @@
+name = "deposit-tracker-sync-worker"
+main = "src/index.js"
+compatibility_date = "2024-11-01"
+
+# Every 5 minutes. Cron schedules are UTC; that's irrelevant here since the
+# interval doesn't depend on time-of-day.
+[triggers]
+crons = ["*/5 * * * *"]
+
+# Non-secret configuration. Secrets (the service account key) are set with
+# `wrangler secret put` — see README "Console setup checklist".
+[vars]
+FIRESTORE_PROJECT_ID = "REPLACE_ME"
+SHEET_ID = "REPLACE_ME"
+SHEET_TAB_NAME = "Deposits"

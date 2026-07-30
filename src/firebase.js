@@ -16,7 +16,7 @@
 import { getApps, initializeApp } from 'firebase/app';
 import {
   getFirestore,
-  addDoc,
+  setDoc,
   updateDoc,
   doc,
   collection,
@@ -54,19 +54,29 @@ export function initFirebase(config) {
 }
 
 /**
- * Append a deposit record. Resolves to the new document id, or false when the
- * write could not be made.
+ * Create a deposit record, using the caller-supplied `depositId` as the
+ * Firestore document id itself (not an auto-generated one).
+ *
+ * This is what lets the server-side Sheet sync and the Sheet-edit webhook
+ * address a record directly as `deposits/{depositId}` from either direction,
+ * instead of having to look documents up by a field value.
+ *
+ * Resolves to the depositId on success, or false when the write failed.
  */
 export async function addDeposit(record) {
   if (!db) {
     console.error('Firestore is not initialized');
     return false;
   }
+  if (!record.depositId) {
+    console.error('addDeposit requires a depositId');
+    return false;
+  }
 
   const nowIso = new Date().toISOString();
 
   try {
-    const ref = await addDoc(collection(db, COLLECTION), {
+    await setDoc(doc(db, COLLECTION, record.depositId), {
       depositId: record.depositId,
       firstName: record.firstName || '',
       nickname: record.nickname || '',
@@ -80,7 +90,7 @@ export async function addDeposit(record) {
       deletedAt: null,
       createdAt: serverTimestamp(),
     });
-    return ref.id;
+    return record.depositId;
   } catch (error) {
     console.error('Error adding document to Firestore:', error);
     return false;

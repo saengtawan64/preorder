@@ -25,6 +25,10 @@ service cloud.firestore {
                && data.keys().hasAll([
                  'depositId', 'firstName', 'phoneNumber', 'depositItem', 'depositAmount'
                ])
+               // The document id IS the depositId (see src/firebase.js) — this
+               // keeps the two systems that sync this collection able to
+               // address a record the same way, by path, from either side.
+               && data.depositId == docId
                && data.depositId is string    && data.depositId.size() > 0
                && data.firstName is string    && data.firstName.size() <= 100
                && data.nickname is string     && data.nickname.size() <= 100
