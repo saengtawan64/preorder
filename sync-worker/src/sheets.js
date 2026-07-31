@@ -78,7 +78,14 @@ async function sheetsFetch(path, token, init = {}) {
 /** Read every existing row of a tab, keyed by depositId (column A). */
 async function readExistingRows(sheetId, tabName, token) {
   const encodedRange = encodeURIComponent(`'${tabName}'!${RANGE_COLUMNS}`);
-  const data = await sheetsFetch(`${sheetId}/values/${encodedRange}`, token);
+  // UNFORMATTED_VALUE so we compare the raw stored values, not what the cell's
+  // number format renders. Otherwise a currency format on column G ("฿5,000")
+  // never equals the plain number the sync writes (5000), so every row looks
+  // "changed" and the worker rewrites all of them on every single run.
+  const data = await sheetsFetch(
+    `${sheetId}/values/${encodedRange}?valueRenderOption=UNFORMATTED_VALUE`,
+    token,
+  );
   const rows = data.values || [];
 
   const byDepositId = new Map();
@@ -97,30 +104,45 @@ const HEADER_ROW = [
 
 /**
  * Make sure the sheet is structured for two-tab syncing: the "รับของแล้ว"
- * archive tab exists (with a header), and column H of both tabs has the status
- * dropdown. Runs once — when the archive tab already exists, it does nothing —
- * so the shop owner never has to set the sheet up by hand.
+ * archive tab exists, and column H of both tabs has the status dropdown. The
+ * one-time parts (creating the archive tab, adding the dropdown) run only when
+ * the archive tab is missing; the header row of both tabs is re-pinned on every
+ * run because a drifted column-A header silently breaks append (see below).
  */
 async function ensureSheetStructure(sheetId, activeTab, receivedTab, token) {
   const meta = await sheetsFetch(`${sheetId}?fields=sheets(properties(sheetId,title))`, token);
   const idByTitle = {};
   for (const s of meta.sheets || []) idByTitle[s.properties.title] = s.properties.sheetId;
 
-  if (idByTitle[receivedTab] !== undefined) return; // already set up
+  const alreadySetUp = idByTitle[receivedTab] !== undefined;
 
-  // Create the archive tab and remember its numeric id.
-  const added = await sheetsFetch(`${sheetId}:batchUpdate`, token, {
+  if (!alreadySetUp) {
+    // Create the archive tab and remember its numeric id.
+    const added = await sheetsFetch(`${sheetId}:batchUpdate`, token, {
+      method: 'POST',
+      body: JSON.stringify({ requests: [{ addSheet: { properties: { title: receivedTab } } }] }),
+    });
+    idByTitle[receivedTab] = added.replies[0].addSheet.properties.sheetId;
+  }
+
+  // Repair the header row of BOTH tabs on every run — cheap, and it is the one
+  // thing that must never drift. If column A of the header is ever blanked (e.g.
+  // someone edits the "depositId" cell by hand), Sheets' values.append anchors
+  // the table at the first non-empty header column and writes every appended row
+  // shifted one column to the right. Column A then stays empty, the worker can
+  // no longer match a row to its deposit by column A, and it re-appends the same
+  // deposit forever — one duplicate per run. Rewriting the header keeps column A
+  // pinned to "depositId" so append always lands in column A. RAW writes here
+  // don't fire the sheet's onEdit trigger, so this never loops back.
+  await sheetsFetch(`${sheetId}/values:batchUpdate`, token, {
     method: 'POST',
-    body: JSON.stringify({ requests: [{ addSheet: { properties: { title: receivedTab } } }] }),
+    body: JSON.stringify({
+      valueInputOption: 'RAW',
+      data: [activeTab, receivedTab].map((t) => ({ range: `'${t}'!A1:I1`, values: [HEADER_ROW] })),
+    }),
   });
-  idByTitle[receivedTab] = added.replies[0].addSheet.properties.sheetId;
 
-  // Header row on the new tab.
-  const headerRange = encodeURIComponent(`'${receivedTab}'!A1:I1`);
-  await sheetsFetch(`${sheetId}/values/${headerRange}?valueInputOption=RAW`, token, {
-    method: 'PUT',
-    body: JSON.stringify({ values: [HEADER_ROW] }),
-  });
+  if (alreadySetUp) return; // dropdown already configured on an earlier run
 
   // Status dropdown on column H (rows 2..1001) of both tabs. strict:false so
   // the worker's own RAW writes are never rejected; the dropdown just guides
