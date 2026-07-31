@@ -15,3 +15,6 @@ npm-debug.log*
 # Local machine-specific helper (holds an absolute path to the secret key file)
 set-gcp-key.bat
 *.gcp-key.bat
+
+# One-off local maintenance script (also holds an absolute path to the key file)
+cleanup-test-data.mjs
