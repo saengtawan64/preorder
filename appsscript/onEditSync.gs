@@ -144,21 +144,29 @@ function setupSheet() {
  * API. Presentation only — it never touches cell values, so it can't disturb the
  * sync.
  *
- * The look: deep navy header (white bold), Sarabun font, subtle alternating row
+ * The look: bold white header (deep navy on "Deposits", deep green on the
+ * "รับของแล้ว" archive to signal "done"), Sarabun font, subtle alternating row
  * stripes, a "฿" amount column, colour-coded status chips (amber pending / green
- * received / red deleted), greyed-out struck-through deleted rows, and the two
- * system columns (A depositId, I อัปเดตล่าสุด) hidden so staff see only the
- * columns that matter. Hiding column A also guards the header cell that, if
- * blanked by hand, breaks append and causes runaway duplicate rows.
+ * received / red deleted), and greyed-out struck-through deleted rows. The two
+ * system columns (A depositId, I อัปเดตล่าสุด) are made narrow and muted — NOT
+ * hidden. Hiding column A is what caused runaway duplicate rows: Google's
+ * values.append starts writing at the first *visible* column, so a hidden
+ * column A pushes every appended row one column to the right and column A (the
+ * key the sync matches on) stays empty forever. Keep column A visible. The
+ * status column IS hidden on the archive tab, where every row is "received" so
+ * the column is redundant — hiding a middle column is safe for append.
  */
 function beautifySheet() {
   const ss = SpreadsheetApp.getActive();
   const NAVY = '#0F172A';
+  const GREEN = '#166534';
+  const MUTE = '#C5CAD3';
   const tabColors = { 'Deposits': '#F59E0B', 'รับของแล้ว': '#10B981' };
 
   ['Deposits', 'รับของแล้ว'].forEach(function (name) {
     const sh = ss.getSheetByName(name);
     if (!sh) return;
+    const isArchive = name === 'รับของแล้ว';
     const maxRows = Math.max(sh.getMaxRows(), 2);
     const numData = maxRows - 1;
 
@@ -167,9 +175,9 @@ function beautifySheet() {
     sh.setRowHeight(1, 42);
     sh.setRowHeights(2, numData, 30);
 
-    // Header: white bold on deep navy, centred.
+    // Header: white bold; navy on the active tab, green on the archive.
     sh.getRange(1, 1, 1, 9)
-      .setBackground(NAVY).setFontColor('#FFFFFF').setFontWeight('bold')
+      .setBackground(isArchive ? GREEN : NAVY).setFontColor('#FFFFFF').setFontWeight('bold')
       .setFontSize(11).setFontFamily('Sarabun')
       .setHorizontalAlignment('center').setVerticalAlignment('middle');
 
@@ -188,12 +196,16 @@ function beautifySheet() {
       .setFontWeight('bold').setFontColor(NAVY); // amount
     sh.getRange(2, 8, numData, 1).setHorizontalAlignment('center').setFontWeight('bold'); // status
 
-    // Column widths, then hide the two system columns.
-    [60, 130, 110, 90, 130, 240, 130, 160, 150].forEach(function (w, i) {
+    // Column widths. A (depositId) and I (updatedAtIso) are kept narrow, and
+    // their body text is muted grey below — visible but unobtrusive. They must
+    // NOT be hidden (a hidden column A breaks append; see the header comment).
+    [46, 130, 110, 90, 130, 240, 130, 160, 46].forEach(function (w, i) {
       sh.setColumnWidth(i + 1, w);
     });
-    sh.hideColumns(1); // A depositId
-    sh.hideColumns(9); // I อัปเดตล่าสุด
+    sh.getRange(2, 1, numData, 1).setFontColor(MUTE).setFontSize(8); // A depositId
+    sh.getRange(2, 9, numData, 1).setFontColor(MUTE).setFontSize(8); // I อัปเดตล่าสุด
+    sh.showColumns(1, 9); // undo any earlier hide, then hide only what's safe
+    if (isArchive) sh.hideColumns(8); // status column — redundant in the archive
 
     // Subtle alternating stripes (rebuild to stay idempotent).
     sh.getBandings().forEach(function (b) { b.remove(); });
