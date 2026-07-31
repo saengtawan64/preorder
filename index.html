@@ -1,0 +1,309 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>ระบบจัดเก็บและตรวจสอบมัดจำสินค้า</title>
+  <meta name="description" content="ระบบภายในสำหรับพนักงาน — บันทึกและตรวจสอบข้อมูลมัดจำสินค้า" />
+  <meta name="robots" content="noindex, nofollow" />
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+
+  <!-- Fonts: Prompt & Kanit for Thai -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <script type="module" src="/src/main.js"></script>
+</head>
+<body>
+  <div id="app">
+
+    <!-- LOGIN GATE — shown until Firebase Auth confirms a session. Everything
+         else in #app stays hidden behind this; there is no public view. -->
+    <div id="auth-gate" class="auth-gate">
+      <div class="auth-gate-card">
+        <div class="brand-icon auth-gate-icon">
+          <i data-lucide="shield-check"></i>
+        </div>
+        <h1>ระบบจัดเก็บข้อมูลมัดจำสินค้า</h1>
+        <p class="text-muted">สำหรับพนักงานเท่านั้น กรุณากรอกรหัสผ่านเพื่อเข้าใช้งาน</p>
+
+        <form id="auth-gate-form">
+          <div class="form-group">
+            <label for="auth-gate-password"><i data-lucide="key-round"></i> รหัสผ่าน</label>
+            <div class="input-wrapper">
+              <input type="password" id="auth-gate-password" placeholder="••••••••" required autofocus />
+              <button type="button" id="auth-gate-toggle-vis" class="btn-icon-inside">
+                <i data-lucide="eye"></i>
+              </button>
+            </div>
+            <small id="auth-gate-error" class="error-msg hidden"></small>
+          </div>
+
+          <button type="submit" id="auth-gate-submit" class="btn btn-primary btn-block btn-lg">
+            <i data-lucide="log-in"></i>
+            <span>เข้าสู่ระบบ</span>
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- APP CONTENT — hidden until signed in -->
+    <div id="app-content" class="hidden">
+
+      <!-- Navbar Header -->
+      <header class="navbar">
+        <div class="nav-container">
+          <div class="brand">
+            <div class="brand-icon">
+              <i data-lucide="shield-check"></i>
+            </div>
+            <div class="brand-text">
+              <h1>DepositTracker</h1>
+              <span class="brand-tag"><i data-lucide="lock"></i> ระบบภายใน — พนักงานเท่านั้น</span>
+            </div>
+          </div>
+
+          <div class="nav-actions">
+            <button id="theme-toggle-btn" class="btn-icon" title="เปลี่ยนธีม">
+              <i data-lucide="sun" id="theme-icon"></i>
+            </button>
+
+            <button id="switch-view-btn" class="btn btn-secondary">
+              <i data-lucide="refresh-cw"></i>
+              <span id="view-toggle-text">ไปที่หน้าแดชบอร์ด</span>
+            </button>
+
+            <button id="logout-btn" class="btn btn-danger btn-outline">
+              <i data-lucide="log-out"></i>
+              <span>ออกจากระบบ</span>
+            </button>
+          </div>
+        </div>
+      </header>
+
+      <!-- Main Content Area -->
+      <main class="main-container">
+
+        <!-- LOOKUP & DEPOSIT SUBMISSION VIEW -->
+        <section id="lookup-view" class="view-section active">
+
+          <!-- Quick Lookup / Search Bar Banner -->
+          <div class="search-hero-card">
+            <div class="hero-header">
+              <h2><i data-lucide="search"></i> ตรวจสอบข้อมูลการมัดจำสินค้า (Real-time)</h2>
+              <p>พิมพ์ **ชื่อ, ชื่อเล่น หรือเบอร์โทรศัพท์** เพื่อค้นหาวันที่ สินค้าที่มัดจำ และยอดเงินมัดจำทันที</p>
+            </div>
+
+            <div class="main-search-wrapper">
+              <div class="search-input-box">
+                <i data-lucide="search" class="search-icon"></i>
+                <input type="text" id="public-search-input" placeholder="ค้นหาด้วย ชื่อ, ชื่อเล่น หรือ เบอร์โทรศัพท์..." autocomplete="off" />
+                <button id="public-search-clear" class="btn-clear hidden">&times;</button>
+              </div>
+            </div>
+          </div>
+
+          <!-- Search Results / Deposit Cards Container -->
+          <div id="search-results-section" class="search-results-container hidden">
+            <div class="results-header">
+              <h3><i data-lucide="list-filter"></i> ผลการค้นหาข้อมูลมัดจำ</h3>
+              <span id="results-count-badge" class="badge badge-info">พบ 0 รายการ</span>
+            </div>
+
+            <div id="results-cards-grid" class="deposit-cards-grid">
+              <!-- Dynamic Result Cards -->
+            </div>
+          </div>
+
+          <hr class="divider" />
+
+          <!-- Form Section -->
+          <div class="card form-card margin-top-lg">
+            <div class="card-header">
+              <h3><i data-lucide="plus-circle"></i> แบบฟอร์มเพิ่มรายการมัดจำใหม่</h3>
+              <span class="badge badge-success"><i data-lucide="shield-check"></i> บันทึกลง Firebase</span>
+            </div>
+
+            <form id="contact-form" autocomplete="off">
+              <div class="form-grid">
+
+                <!-- First Name -->
+                <div class="form-group">
+                  <label for="first-name">
+                    <i data-lucide="user"></i> ชื่อจริง <span class="required">*</span>
+                  </label>
+                  <div class="input-wrapper">
+                    <input type="text" id="first-name" name="firstName" placeholder="เช่น สมชาย" required />
+                  </div>
+                </div>
+
+                <!-- Nickname -->
+                <div class="form-group">
+                  <label for="nickname">
+                    <i data-lucide="smile"></i> ชื่อเล่น <span class="required">*</span>
+                  </label>
+                  <div class="input-wrapper">
+                    <input type="text" id="nickname" name="nickname" placeholder="เช่น ชาย" required />
+                  </div>
+                </div>
+
+                <!-- Phone Number -->
+                <div class="form-group full-width">
+                  <label for="phone-number">
+                    <i data-lucide="phone"></i> เบอร์โทรลูกค้า <span class="required">*</span>
+                  </label>
+                  <div class="input-wrapper">
+                    <input type="tel" id="phone-number" name="phoneNumber" placeholder="08X-XXX-XXXX" maxlength="12" required />
+                  </div>
+                  <small class="input-hint">เบอร์โทรศัพท์ 10 หลัก</small>
+                </div>
+
+                <!-- Deposit Product / Item Name -->
+                <div class="form-group">
+                  <label for="deposit-item">
+                    <i data-lucide="package"></i> สินค้าที่มัดจำ <span class="required">*</span>
+                  </label>
+                  <div class="input-wrapper">
+                    <input type="text" id="deposit-item" name="depositItem" placeholder="เช่น กระเป๋าหนัง, โทรศัพท์ iPhone 15" required />
+                  </div>
+                </div>
+
+                <!-- Deposit Amount in Baht -->
+                <div class="form-group">
+                  <label for="deposit-amount">
+                    <i data-lucide="coins"></i> ยอดมัดจำ (บาท) <span class="required">*</span>
+                  </label>
+                  <div class="input-wrapper">
+                    <input type="number" id="deposit-amount" name="depositAmount" placeholder="เช่น 500 หรือ 2000" min="1" step="any" required />
+                  </div>
+                </div>
+
+              </div>
+
+              <!-- Notice Box -->
+              <div class="pdpa-notice-box">
+                <div class="pdpa-icon"><i data-lucide="shield-alert"></i></div>
+                <div class="pdpa-text">
+                  <strong>ระบบภายใน — เข้าถึงได้เฉพาะพนักงานที่มีรหัสผ่านเท่านั้น:</strong>
+                  ข้อมูลลูกค้าที่บันทึกในระบบนี้ใช้เพื่อติดตามรายการมัดจำเท่านั้น กรุณาอย่าเผยแพร่หรือส่งต่อข้อมูลนี้ให้บุคคลภายนอก
+                </div>
+              </div>
+
+              <div class="form-actions">
+                <button type="submit" id="submit-btn" class="btn btn-primary btn-block btn-lg">
+                  <i data-lucide="send"></i>
+                  <span>บันทึกรายการมัดจำ</span>
+                </button>
+              </div>
+            </form>
+          </div>
+
+          <div id="submission-success-card" class="card success-card hidden">
+            <div class="success-icon"><i data-lucide="check-circle-2"></i></div>
+            <h3>บันทึกข้อมูลมัดจำเรียบร้อยแล้ว!</h3>
+            <p>ข้อมูลถูกบันทึกลงระบบเรียบร้อยแล้ว</p>
+            <div class="submitted-details" id="submitted-details-box"></div>
+            <button id="reset-form-btn" class="btn btn-outline margin-top">
+              <i data-lucide="plus-circle"></i> เพิ่มรายการมัดจำอื่นอีก
+            </button>
+          </div>
+        </section>
+
+        <!-- DASHBOARD VIEW -->
+        <section id="dashboard-view" class="view-section hidden">
+
+          <div class="dashboard-header">
+            <div>
+              <h2><i data-lucide="layout-dashboard"></i> แดชบอร์ดจัดการข้อมูลมัดจำ</h2>
+              <p class="text-muted">ข้อมูลรายการมัดจำ Real-time บน Firebase</p>
+            </div>
+            <div class="dashboard-actions">
+              <span id="connection-status" class="status-pill">
+                <i data-lucide="refresh-cw"></i>
+                <span>กำลังเชื่อมต่อ...</span>
+              </span>
+            </div>
+          </div>
+
+          <!-- Metrics Cards -->
+          <div class="metrics-grid">
+            <div class="metric-card">
+              <div class="metric-icon icon-green"><i data-lucide="wallet"></i></div>
+              <div class="metric-content">
+                <span class="metric-label">ยอดเงินมัดจำรวมทั้งหมด</span>
+                <h3 id="metric-total-amount" class="metric-value text-success">฿0</h3>
+              </div>
+            </div>
+
+            <div class="metric-card">
+              <div class="metric-icon icon-blue"><i data-lucide="package-check"></i></div>
+              <div class="metric-content">
+                <span class="metric-label">จำนวนรายการมัดจำ</span>
+                <h3 id="metric-total-count" class="metric-value">0 รายการ</h3>
+              </div>
+            </div>
+
+            <div class="metric-card">
+              <div class="metric-icon icon-purple"><i data-lucide="calendar-check"></i></div>
+              <div class="metric-content">
+                <span class="metric-label">ยอดมัดจำวันนี้</span>
+                <h3 id="metric-today-amount" class="metric-value">฿0</h3>
+              </div>
+            </div>
+          </div>
+
+          <!-- Grouped By Date Main Container -->
+          <div class="card table-card">
+            <div class="table-toolbar">
+              <div class="search-box">
+                <i data-lucide="search"></i>
+                <input type="text" id="admin-search-input" placeholder="ค้นหา ชื่อ, ชื่อเล่น, เบอร์โทร, หรือสินค้า..." />
+                <button id="admin-clear-search-btn" class="btn-clear hidden">&times;</button>
+              </div>
+
+              <div class="toolbar-buttons">
+                <div class="mode-toggle" role="group" aria-label="สลับมุมมอง">
+                  <button id="mode-pending-btn" class="btn btn-sm mode-btn is-active" data-mode="pending">
+                    <i data-lucide="clock"></i> รอรับของ
+                  </button>
+                  <button id="mode-received-btn" class="btn btn-sm mode-btn" data-mode="received">
+                    <i data-lucide="check-check"></i> รับของแล้ว
+                  </button>
+                </div>
+                <button id="export-csv-btn" class="btn btn-outline btn-sm">
+                  <i data-lucide="download"></i> ส่งออก CSV
+                </button>
+              </div>
+            </div>
+
+            <div id="grouped-dates-container">
+              <!-- Rendered via JS -->
+            </div>
+
+            <div id="table-empty-state" class="empty-state hidden">
+              <i data-lucide="inbox"></i>
+              <p>ไม่พบข้อมูลรายการมัดจำ</p>
+            </div>
+
+          </div>
+
+        </section>
+
+      </main>
+
+      <!-- Toast Container -->
+      <div id="toast-container" class="toast-container"></div>
+
+      <!-- Footer -->
+      <footer class="footer">
+        <div class="footer-container">
+          <p>&copy; 2026 Deposit Tracker — ระบบภายใน สำหรับพนักงานที่ได้รับอนุญาตเท่านั้น</p>
+        </div>
+      </footer>
+    </div>
+
+  </div>
+
+</body>
+</html>

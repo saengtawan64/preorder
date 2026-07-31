@@ -1,0 +1,74 @@
+rules_version = '2';
+
+// This is a closed internal tool: every read and write requires a signed-in
+// user, and there is exactly one shared account (see src/auth.js). The
+// password on that account is what actually protects this data — these rules
+// only add a second layer (shape validation) on top of that gate.
+//
+// Deploy:  firebase deploy --only firestore:rules
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    match /deposits/{docId} {
+
+      function isSignedIn() {
+        return request.auth != null;
+      }
+
+      function isWellFormedCreate(data) {
+        return data.keys().hasOnly([
+                 'depositId', 'firstName', 'nickname', 'phoneNumber',
+                 'depositItem', 'depositAmount', 'timestamp', 'status',
+                 'createdAtIso', 'updatedAtIso', 'source', 'deletedAt', 'createdAt'
+               ])
+               && data.keys().hasAll([
+                 'depositId', 'firstName', 'phoneNumber', 'depositItem', 'depositAmount'
+               ])
+               // status is optional on create (defaults to pending), but if
+               // present must be one of the two lifecycle values.
+               && (!('status' in data) || (data.status is string && data.status in ['pending', 'received']))
+               // The document id IS the depositId (see src/firebase.js) — this
+               // keeps the two systems that sync this collection able to
+               // address a record the same way, by path, from either side.
+               && data.depositId == docId
+               && data.depositId is string    && data.depositId.size() > 0
+               && data.firstName is string    && data.firstName.size() <= 100
+               && data.nickname is string     && data.nickname.size() <= 100
+               && data.phoneNumber is string  && data.phoneNumber.size() <= 20
+               && data.depositItem is string  && data.depositItem.size() <= 300
+               && data.depositAmount is number
+               && data.depositAmount > 0
+               && data.depositAmount <= 10000000
+               && data.timestamp is string    && data.timestamp.size() <= 60;
+      }
+
+      // A record's identity fields never change after creation. Only status
+      // fields (soft delete, sync bookkeeping) may be updated — this is what
+      // lets the web UI "delete" a row without being able to rewrite history,
+      // and what the Sheet-sync webhook uses to update an existing record.
+      function isWellFormedUpdate(data) {
+        let unchanged = ['depositId', 'firstName', 'nickname', 'phoneNumber',
+                          'depositItem', 'depositAmount', 'timestamp',
+                          'createdAtIso', 'source', 'createdAt'];
+        return unchanged.toSet().difference(data.diff(resource.data).affectedKeys()) == unchanged.toSet()
+               || data.diff(resource.data).affectedKeys().hasOnly(['deletedAt', 'updatedAtIso'])
+               // Marking a deposit received (customer collected the goods).
+               || (data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAtIso'])
+                   && data.status in ['pending', 'received']);
+      }
+
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isWellFormedCreate(request.resource.data);
+      allow update: if isSignedIn() && isWellFormedUpdate(request.resource.data);
+
+      // No hard deletes from the client — "delete" is soft (see update rule
+      // above), so a record's id and row position never move.
+      allow delete: if false;
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

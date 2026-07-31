@@ -1,0 +1,17 @@
+node_modules/
+dist/
+
+# Local env — real URLs and keys. .env.example is the tracked template.
+.env
+.env.local
+.env.*.local
+
+*.log
+npm-debug.log*
+.DS_Store
+.vite/
+.wrangler/
+
+# Local machine-specific helper (holds an absolute path to the secret key file)
+set-gcp-key.bat
+*.gcp-key.bat
