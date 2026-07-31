@@ -138,46 +138,88 @@ function setupSheet() {
 }
 
 /**
- * Make both tabs look tidy. Run once from the editor (safe to re-run — it
- * rebuilds the same styles each time).
+ * Premium "navy" restyle of both tabs. Run once from the editor; safe to re-run
+ * — it rebuilds the same styles each time. This is the canonical source for the
+ * sheet design; keep it in sync with any design applied directly via the Sheets
+ * API. Presentation only — it never touches cell values, so it can't disturb the
+ * sync.
+ *
+ * The look: deep navy header (white bold), Sarabun font, subtle alternating row
+ * stripes, a "฿" amount column, colour-coded status chips (amber pending / green
+ * received / red deleted), greyed-out struck-through deleted rows, and the two
+ * system columns (A depositId, I อัปเดตล่าสุด) hidden so staff see only the
+ * columns that matter. Hiding column A also guards the header cell that, if
+ * blanked by hand, breaks append and causes runaway duplicate rows.
  */
 function beautifySheet() {
   const ss = SpreadsheetApp.getActive();
+  const NAVY = '#0F172A';
+  const tabColors = { 'Deposits': '#F59E0B', 'รับของแล้ว': '#10B981' };
+
   ['Deposits', 'รับของแล้ว'].forEach(function (name) {
     const sh = ss.getSheetByName(name);
     if (!sh) return;
     const maxRows = Math.max(sh.getMaxRows(), 2);
+    const numData = maxRows - 1;
 
-    // Header: bold white on dark blue, centred, frozen.
-    sh.getRange(1, 1, 1, 9)
-      .setBackground('#1f3864').setFontColor('#ffffff').setFontWeight('bold')
-      .setHorizontalAlignment('center').setVerticalAlignment('middle');
     sh.setFrozenRows(1);
-    sh.setRowHeight(1, 36);
+    sh.setTabColor(tabColors[name]);
+    sh.setRowHeight(1, 42);
+    sh.setRowHeights(2, numData, 30);
 
-    // Sensible column widths.
-    [220, 155, 120, 100, 120, 180, 120, 150, 185].forEach(function (w, i) {
+    // Header: white bold on deep navy, centred.
+    sh.getRange(1, 1, 1, 9)
+      .setBackground(NAVY).setFontColor('#FFFFFF').setFontWeight('bold')
+      .setFontSize(11).setFontFamily('Sarabun')
+      .setHorizontalAlignment('center').setVerticalAlignment('middle');
+
+    // Base body text.
+    sh.getRange(2, 1, numData, 9)
+      .setFontFamily('Sarabun').setFontSize(10).setFontColor('#1E293B')
+      .setVerticalAlignment('middle');
+
+    // Per-column alignment / formatting.
+    sh.getRange(2, 2, numData, 1).setHorizontalAlignment('center'); // date
+    sh.getRange(2, 3, numData, 2).setHorizontalAlignment('left');   // first + nick
+    sh.getRange(2, 5, numData, 1).setHorizontalAlignment('center'); // phone
+    sh.getRange(2, 6, numData, 1).setHorizontalAlignment('left').setWrap(true); // product
+    sh.getRange(2, 7, numData, 1)
+      .setNumberFormat('"฿"#,##0').setHorizontalAlignment('right')
+      .setFontWeight('bold').setFontColor(NAVY); // amount
+    sh.getRange(2, 8, numData, 1).setHorizontalAlignment('center').setFontWeight('bold'); // status
+
+    // Column widths, then hide the two system columns.
+    [60, 130, 110, 90, 130, 240, 130, 160, 150].forEach(function (w, i) {
       sh.setColumnWidth(i + 1, w);
     });
+    sh.hideColumns(1); // A depositId
+    sh.hideColumns(9); // I อัปเดตล่าสุด
 
-    // Amount as Thai baht, right-aligned; system columns small and muted.
-    sh.getRange(2, 7, maxRows - 1, 1).setNumberFormat('"฿"#,##0').setHorizontalAlignment('right');
-    sh.getRange(2, 1, maxRows - 1, 1).setFontColor('#9aa0a6').setFontSize(8);
-    sh.getRange(2, 9, maxRows - 1, 1).setFontColor('#9aa0a6').setFontSize(8);
-
-    // Alternating row stripes (rebuild to stay idempotent).
+    // Subtle alternating stripes (rebuild to stay idempotent).
     sh.getBandings().forEach(function (b) { b.remove(); });
-    sh.getRange(2, 1, maxRows - 1, 9)
-      .applyRowBanding(SpreadsheetApp.BandingTheme.LIGHT_GREY, false, false);
+    const banding = sh.getRange(2, 1, numData, 9).applyRowBanding();
+    banding.setHeaderRowColor(null).setFooterRowColor(null)
+      .setFirstRowColor('#FFFFFF').setSecondRowColor('#F1F5F9');
 
-    // Whole-row tint by status (replaces this tab's conditional-format rules).
-    const dataRange = sh.getRange(2, 1, maxRows - 1, 9);
+    // Status chips on column H, then a greyed struck-through tint on deleted rows.
+    // The chip rules come first so a deleted row keeps its red status chip while
+    // the rest of the row goes grey.
+    const statusCol = sh.getRange(2, 8, numData, 1);
+    const dataRange = sh.getRange(2, 1, numData, 9);
     sh.setConditionalFormatRules([
       SpreadsheetApp.newConditionalFormatRule()
-        .whenFormulaSatisfied('=$H2="ลบแล้ว"').setBackground('#fdecea').setRanges([dataRange]).build(),
+        .whenTextEqualTo('รอการจัดส่งสินค้า').setBackground('#FEF3C7').setFontColor('#92400E').setBold(true)
+        .setRanges([statusCol]).build(),
       SpreadsheetApp.newConditionalFormatRule()
-        .whenFormulaSatisfied('=$H2="รับสินค้าแล้ว"').setBackground('#e6f4ea').setRanges([dataRange]).build(),
+        .whenTextEqualTo('รับสินค้าแล้ว').setBackground('#DCFCE7').setFontColor('#166534').setBold(true)
+        .setRanges([statusCol]).build(),
+      SpreadsheetApp.newConditionalFormatRule()
+        .whenTextEqualTo('ลบแล้ว').setBackground('#FEE2E2').setFontColor('#991B1B').setBold(true)
+        .setRanges([statusCol]).build(),
+      SpreadsheetApp.newConditionalFormatRule()
+        .whenFormulaSatisfied('=$H2="ลบแล้ว"').setBackground('#FEF2F2').setFontColor('#9CA3AF').setStrikethrough(true)
+        .setRanges([dataRange]).build(),
     ]);
   });
-  ss.toast('ตกแต่งชีตเรียบร้อย', 'beautifySheet', 5);
+  ss.toast('ตกแต่งชีตธีมพรีเมี่ยมเรียบร้อย', 'beautifySheet', 5);
 }
