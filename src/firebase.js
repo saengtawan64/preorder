@@ -150,11 +150,12 @@ export async function markReceivedDeposit(id) {
 /**
  * Subscribe to the deposits collection, newest first.
  *
- * Soft-deleted records are filtered out here rather than in the query, since
- * a `where(deletedAt == null)` alongside `orderBy(createdAt)` would need a
- * composite index — not worth it at shop scale. Fires for empty snapshots
- * too, so deleting the last record clears the UI. Returns the unsubscribe
- * function, or null when Firestore is unavailable.
+ * Every record is passed through, soft-deleted ones included — the UI has a
+ * "ลบแล้ว" view, and the sheet keeps deleted rows too, so hiding them here
+ * would make the two disagree. Callers decide what to show; anything that
+ * counts money must exclude records with `deletedAt` set. Fires for empty
+ * snapshots too, so deleting the last record clears the UI. Returns the
+ * unsubscribe function, or null when Firestore is unavailable.
  */
 export function subscribeDeposits(onChange) {
   if (!db) return null;
@@ -166,9 +167,7 @@ export function subscribeDeposits(onChange) {
       (snapshot) => {
         const records = [];
         snapshot.forEach((docSnap) => {
-          const data = docSnap.data();
-          if (data.deletedAt) return;
-          records.push({ id: docSnap.id, ...data });
+          records.push({ id: docSnap.id, ...docSnap.data() });
         });
         onChange(records);
       },

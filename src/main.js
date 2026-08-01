@@ -34,11 +34,21 @@ const el = {
   authGateSubmit: document.getElementById('auth-gate-submit'),
   appContent: document.getElementById('app-content'),
 
+  sidebar: document.getElementById('sidebar'),
+  sidebarToggle: document.getElementById('sidebar-toggle'),
+  navPending: document.getElementById('nav-pending'),
+  navReceived: document.getElementById('nav-received'),
+  navDeleted: document.getElementById('nav-deleted'),
+  countPending: document.getElementById('count-pending'),
+  countReceived: document.getElementById('count-received'),
+  countDeleted: document.getElementById('count-deleted'),
+
   themeToggleBtn: document.getElementById('theme-toggle-btn'),
   themeIcon: document.getElementById('theme-icon'),
+  themeLabel: document.getElementById('theme-label'),
   logoutBtn: document.getElementById('logout-btn'),
+  exportCsvBtn: document.getElementById('export-csv-btn'),
 
-  // Add-deposit slide-over
   addOpenBtn: document.getElementById('add-open-btn'),
   addPanel: document.getElementById('add-panel'),
   addOverlay: document.getElementById('add-overlay'),
@@ -51,15 +61,11 @@ const el = {
   depositAmountInput: document.getElementById('deposit-amount'),
   submitBtn: document.getElementById('submit-btn'),
 
-  // Single search + list
   searchInput: document.getElementById('search-input'),
   searchClearBtn: document.getElementById('search-clear-btn'),
   connectionStatus: document.getElementById('connection-status'),
   groupedDatesContainer: document.getElementById('grouped-dates-container'),
   tableEmptyState: document.getElementById('table-empty-state'),
-  exportCsvBtn: document.getElementById('export-csv-btn'),
-  modePendingBtn: document.getElementById('mode-pending-btn'),
-  modeReceivedBtn: document.getElementById('mode-received-btn'),
 
   metricTotalAmount: document.getElementById('metric-total-amount'),
   metricTotalCount: document.getElementById('metric-total-count'),
@@ -81,10 +87,7 @@ async function requestSheetSync() {
   try {
     const token = await getIdToken();
     if (!token) return;
-    await fetch('/api/sync-now', {
-      method: 'POST',
-      headers: { Authorization: `Bearer ${token}` },
-    });
+    await fetch('/api/sync-now', { method: 'POST', headers: { Authorization: `Bearer ${token}` } });
   } catch (error) {
     console.warn('Instant sheet sync failed (cron will catch up):', error);
   }
@@ -93,11 +96,11 @@ async function requestSheetSync() {
 /* ---------------------------------------------------------------- theme --- */
 
 function applyTheme() {
+  const dark = state.theme === 'dark';
   document.documentElement.setAttribute('data-theme', state.theme);
-  if (el.themeIcon) {
-    el.themeIcon.setAttribute('data-lucide', state.theme === 'dark' ? 'sun' : 'moon');
-    refreshIcons();
-  }
+  if (el.themeIcon) el.themeIcon.setAttribute('data-lucide', dark ? 'sun' : 'moon');
+  if (el.themeLabel) el.themeLabel.textContent = dark ? 'ธีมสว่าง' : 'ธีมมืด';
+  refreshIcons();
 }
 
 function toggleTheme() {
@@ -140,7 +143,7 @@ let unsubscribeDeposits = null;
 
 function setConnectionStatus(text, variant = 'ok') {
   if (!el.connectionStatus) return;
-  el.connectionStatus.className = `status-pill status-pill-${variant} conn-pill`;
+  el.connectionStatus.className = variant === 'error' ? 'conn-pill is-error' : 'conn-pill';
   el.connectionStatus.innerHTML = `<i data-lucide="${variant === 'error' ? 'alert-triangle' : 'refresh-cw'}"></i><span>${escapeHtml(text)}</span>`;
   refreshIcons();
 }
@@ -170,6 +173,7 @@ function showApp() {
 
 function showGate() {
   closeAddDrawer();
+  el.sidebar.classList.remove('open');
   el.appContent.classList.add('hidden');
   el.authGate.classList.remove('hidden');
   el.authGatePassword.value = '';
@@ -204,15 +208,13 @@ el.authGateForm.addEventListener('submit', async (event) => {
   el.authGateError.classList.add('hidden');
 
   const result = await signIn(password);
-
   el.authGateSubmit.disabled = false;
 
   if (!result.ok) {
-    const message =
+    el.authGateError.textContent =
       result.reason === 'throttled'
         ? 'พยายามเข้าสู่ระบบผิดหลายครั้งเกินไป กรุณารอสักครู่แล้วลองใหม่'
         : 'รหัสผ่านไม่ถูกต้อง';
-    el.authGateError.textContent = message;
     el.authGateError.classList.remove('hidden');
     el.authGatePassword.value = '';
     el.authGatePassword.focus();
@@ -230,7 +232,27 @@ el.logoutBtn.addEventListener('click', async () => {
   toast('ออกจากระบบเรียบร้อยแล้ว', 'info');
 });
 
-/* --------------------------------------------------------- list + search -- */
+/* ------------------------------------------------------------ list state -- */
+
+/**
+ * Which slice of the deposits list is on screen. These mirror the sheet's three
+ * status values exactly, so the rail, the status chips and the sheet's dropdown
+ * always agree on what a record is.
+ */
+let listMode = 'pending';
+
+function isDeleted(record) {
+  return Boolean(record.deletedAt);
+}
+
+function isReceived(record) {
+  return record.status === 'received';
+}
+
+function bucketOf(record) {
+  if (isDeleted(record)) return 'deleted';
+  return isReceived(record) ? 'received' : 'pending';
+}
 
 function matchesQuery(record, needle, needleDigits) {
   const first = (record.firstName || '').toLowerCase();
@@ -248,33 +270,6 @@ function matchesQuery(record, needle, needleDigits) {
 
 function sumAmounts(records) {
   return records.reduce((total, record) => total + (Number(record.depositAmount) || 0), 0);
-}
-
-// The list shows one of two sets: deposits still waiting to be collected
-// ('pending', the default working view), or the archive of collected ones
-// ('received'). Records with no status are treated as pending (older data).
-let dashboardMode = 'pending';
-
-function isReceived(record) {
-  return record.status === 'received';
-}
-
-function depositsForMode() {
-  return state.deposits.filter((record) =>
-    dashboardMode === 'received' ? isReceived(record) : !isReceived(record),
-  );
-}
-
-function renderMetrics() {
-  const today = todayDatePart();
-  // Metrics describe money currently held — i.e. deposits not yet collected.
-  const active = state.deposits.filter((record) => !isReceived(record));
-
-  el.metricTotalAmount.innerText = formatBaht(sumAmounts(active));
-  el.metricTotalCount.innerText = `${active.length} รายการ`;
-
-  const todayRecords = active.filter((record) => datePart(record.timestamp) === today);
-  el.metricTodayAmount.innerText = formatBaht(sumAmounts(todayRecords));
 }
 
 function groupByDate(records) {
@@ -296,30 +291,53 @@ function groupByDate(records) {
   });
 }
 
-function statusChip(record) {
-  return isReceived(record)
-    ? '<span class="status-chip chip-received">รับแล้ว</span>'
-    : '<span class="status-chip chip-pending">รอรับของ</span>';
+/* ------------------------------------------------------------- rendering -- */
+
+const CHIP = {
+  pending: '<span class="status-chip chip-pending">รอรับของ</span>',
+  received: '<span class="status-chip chip-received">รับแล้ว</span>',
+  deleted: '<span class="status-chip chip-deleted">ลบแล้ว</span>',
+};
+
+function renderCounts() {
+  const counts = { pending: 0, received: 0, deleted: 0 };
+  for (const record of state.deposits) counts[bucketOf(record)] += 1;
+
+  el.countPending.textContent = counts.pending;
+  el.countReceived.textContent = counts.received;
+  el.countDeleted.textContent = counts.deleted;
+}
+
+function renderMetrics() {
+  // Metrics describe money currently held: pending only, never deleted.
+  const active = state.deposits.filter((record) => bucketOf(record) === 'pending');
+
+  el.metricTotalAmount.innerText = formatBaht(sumAmounts(active));
+  el.metricTotalCount.innerText = String(active.length);
+
+  const today = todayDatePart();
+  const todayRecords = active.filter((record) => datePart(record.timestamp) === today);
+  el.metricTodayAmount.innerText = formatBaht(sumAmounts(todayRecords));
 }
 
 function renderDateGroup(date, records) {
   const dayTotal = sumAmounts(records);
 
   const rows = records
-    .map(
-      (record, index) => `
-      <tr>
-        <td class="text-muted text-sm">${index + 1}</td>
-        <td><strong>${escapeHtml(record.firstName)}</strong></td>
+    .map((record) => {
+      const bucket = bucketOf(record);
+      return `
+      <tr class="row-${bucket}">
+        <td class="name-cell"><strong>${escapeHtml(record.firstName)}</strong></td>
         <td>${escapeHtml(record.nickname)}</td>
         <td><span class="phone-tag">${escapeHtml(formatPhone(record.phoneNumber))}</span></td>
         <td class="product-cell">${escapeHtml(record.depositItem)}</td>
-        <td class="amount-cell">${formatBaht(record.depositAmount)}</td>
-        <td class="text-center">${statusChip(record)}</td>
-        <td class="text-center">
+        <td class="amount-cell mono">${formatBaht(record.depositAmount)}</td>
+        <td class="text-center no-strike">${CHIP[bucket]}</td>
+        <td class="no-strike">
           <div class="action-btns">
             ${
-              dashboardMode === 'pending'
+              bucket === 'pending'
                 ? `<button class="btn btn-xs btn-success mark-received-btn"
                     data-id="${escapeHtml(record.id)}" title="ลูกค้ารับสินค้าแล้ว">
               <i data-lucide="check-check"></i>
@@ -331,15 +349,19 @@ function renderDateGroup(date, records) {
                     title="คัดลอกข้อมูล">
               <i data-lucide="copy"></i>
             </button>
-            <button class="btn btn-xs btn-danger btn-outline delete-deposit-btn"
+            ${
+              bucket === 'deleted'
+                ? ''
+                : `<button class="btn btn-xs btn-danger btn-outline delete-deposit-btn"
                     data-id="${escapeHtml(record.id)}" title="ลบรายการ">
               <i data-lucide="trash-2"></i>
-            </button>
+            </button>`
+            }
           </div>
         </td>
       </tr>
-    `,
-    )
+    `;
+    })
     .join('');
 
   return `
@@ -348,23 +370,20 @@ function renderDateGroup(date, records) {
         <div class="date-title">
           <i data-lucide="calendar"></i> ${escapeHtml(date)} · ${records.length} รายการ
         </div>
-        <div class="date-summary-tag">
-          รวมมัดจำ ${formatBaht(dayTotal)}
-        </div>
+        <div class="date-summary-tag">รวม ${formatBaht(dayTotal)}</div>
       </div>
 
       <div class="table-responsive">
         <table class="data-table">
           <thead>
             <tr>
-              <th width="40">#</th>
               <th>ชื่อจริง</th>
               <th>ชื่อเล่น</th>
               <th>เบอร์โทร</th>
               <th>สินค้าที่มัดจำ</th>
-              <th>ยอดมัดจำ</th>
+              <th style="text-align:right">ยอดมัดจำ</th>
               <th class="text-center">สถานะ</th>
-              <th width="110" class="text-center">จัดการ</th>
+              <th style="text-align:right">จัดการ</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
@@ -375,15 +394,14 @@ function renderDateGroup(date, records) {
 }
 
 function renderList() {
+  renderCounts();
   renderMetrics();
-  syncModeButtons();
+  syncNavButtons();
 
-  const base = depositsForMode();
+  const base = state.deposits.filter((record) => bucketOf(record) === listMode);
   const needle = el.searchInput.value.toLowerCase().trim();
   const needleDigits = needle.replace(/\D/g, '');
-  const visible = needle
-    ? base.filter((record) => matchesQuery(record, needle, needleDigits))
-    : base;
+  const visible = needle ? base.filter((r) => matchesQuery(r, needle, needleDigits)) : base;
 
   if (visible.length === 0) {
     el.groupedDatesContainer.innerHTML = '';
@@ -416,7 +434,7 @@ el.groupedDatesContainer.addEventListener('click', async (event) => {
   const receivedBtn = event.target.closest('.mark-received-btn');
   if (receivedBtn) {
     const id = receivedBtn.getAttribute('data-id');
-    if (!confirm('ยืนยันว่าลูกค้ารับสินค้าแล้ว?\nรายการจะย้ายไปหน้า "รับของแล้ว"')) return;
+    if (!confirm('ยืนยันว่าลูกค้ารับสินค้าแล้ว?')) return;
     const ok = await markReceivedDeposit(id);
     if (!ok) {
       toast('บันทึกไม่สำเร็จ', 'danger');
@@ -431,33 +449,37 @@ el.groupedDatesContainer.addEventListener('click', async (event) => {
   if (!deleteBtn) return;
 
   const id = deleteBtn.getAttribute('data-id');
-  if (!confirm('คุณต้องการลบรายการมัดจำนี้ใช่หรือไม่?')) return;
+  if (!confirm('คุณต้องการลบรายการมัดจำนี้ใช่หรือไม่?\nรายการจะย้ายไปเมนู "ลบแล้ว" ไม่ได้หายไปจากชีต')) return;
 
   const deleted = await softDeleteDeposit(id);
   if (!deleted) {
     toast('ลบรายการไม่สำเร็จ', 'danger');
     return;
   }
-  // The snapshot listener re-renders with the record gone.
-  toast('ลบรายการมัดจำเรียบร้อยแล้ว', 'info');
+  // The snapshot listener re-renders with the record moved to "ลบแล้ว".
+  toast('ย้ายไปรายการที่ลบแล้ว', 'info');
   requestSheetSync();
 });
 
-/* ------------------------------------------------------------ list mode --- */
+/* ------------------------------------------------------------ rail nav ---- */
 
-function syncModeButtons() {
-  el.modePendingBtn.classList.toggle('is-active', dashboardMode === 'pending');
-  el.modeReceivedBtn.classList.toggle('is-active', dashboardMode === 'received');
+function syncNavButtons() {
+  el.navPending.classList.toggle('is-active', listMode === 'pending');
+  el.navReceived.classList.toggle('is-active', listMode === 'received');
+  el.navDeleted.classList.toggle('is-active', listMode === 'deleted');
 }
 
-function setDashboardMode(mode) {
-  if (dashboardMode === mode) return;
-  dashboardMode = mode;
+function setListMode(mode) {
+  el.sidebar.classList.remove('open'); // closes the mobile drawer after a pick
+  if (listMode === mode) return;
+  listMode = mode;
   renderList();
 }
 
-el.modePendingBtn.addEventListener('click', () => setDashboardMode('pending'));
-el.modeReceivedBtn.addEventListener('click', () => setDashboardMode('received'));
+el.navPending.addEventListener('click', () => setListMode('pending'));
+el.navReceived.addEventListener('click', () => setListMode('received'));
+el.navDeleted.addEventListener('click', () => setListMode('deleted'));
+el.sidebarToggle.addEventListener('click', () => el.sidebar.classList.toggle('open'));
 
 /* --------------------------------------------------- add-deposit drawer --- */
 
@@ -479,7 +501,9 @@ el.addCloseBtn.addEventListener('click', closeAddDrawer);
 el.addOverlay.addEventListener('click', closeAddDrawer);
 
 document.addEventListener('keydown', (event) => {
-  if (event.key === 'Escape') closeAddDrawer();
+  if (event.key !== 'Escape') return;
+  closeAddDrawer();
+  el.sidebar.classList.remove('open');
 });
 
 /* ----------------------------------------------------------------- form --- */
@@ -526,7 +550,7 @@ el.contactForm.addEventListener('submit', async (event) => {
   toast(`บันทึกมัดจำ "${record.firstName}" เรียบร้อย`, 'success');
 
   requestSheetSync();
-  // The real-time listener re-renders the list; call once for instant feedback.
+  // The real-time listener re-renders too; this makes the row appear instantly.
   renderList();
 });
 
@@ -545,13 +569,15 @@ el.searchClearBtn.addEventListener('click', () => {
 
 /* ----------------------------------------------------------- CSV export --- */
 
+const CSV_STATUS = { pending: 'รอการจัดส่งสินค้า', received: 'รับสินค้าแล้ว', deleted: 'ลบแล้ว' };
+
 el.exportCsvBtn.addEventListener('click', () => {
   if (state.deposits.length === 0) {
     toast('ไม่มีข้อมูลสำหรับส่งออก', 'warning');
     return;
   }
 
-  const header = 'ลำดับ,วันที่และเวลา,ชื่อจริง,ชื่อเล่น,เบอร์โทร,สินค้าที่มัดจำ,ยอดมัดจำ (บาท)';
+  const header = 'ลำดับ,วันที่และเวลา,ชื่อจริง,ชื่อเล่น,เบอร์โทร,สินค้าที่มัดจำ,ยอดมัดจำ (บาท),สถานะ';
   const lines = state.deposits.map((record, index) =>
     [
       index + 1,
@@ -561,6 +587,7 @@ el.exportCsvBtn.addEventListener('click', () => {
       record.phoneNumber,
       record.depositItem,
       record.depositAmount,
+      CSV_STATUS[bucketOf(record)],
     ]
       .map(csvCell)
       .join(','),

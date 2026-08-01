@@ -43,9 +43,33 @@ export function formatBaht(value) {
   return '฿' + Number(value || 0).toLocaleString('th-TH');
 }
 
-/** Current wall-clock timestamp in Bangkok, e.g. "30/7/2569 17:22:05". */
+/**
+ * Current wall-clock timestamp in Bangkok, e.g. "1/8/2569 02:21".
+ *
+ * Built part-by-part rather than with toLocaleString('th-TH'): that helper's
+ * exact output (separator, comma, seconds, digit shapes) depends on the
+ * browser's ICU build, so the same save could land in the Sheet as
+ * "1/8/2569 02:21:42" from one machine and "1/8/2569, 02:21" from another —
+ * and Apps Script's own formatter produced a third shape again. This is the one
+ * canonical format; appsscript/onEditSync.gs's thaiTimestamp() builds the exact
+ * same string, so a row reads identically whether it was typed into the Sheet
+ * or saved from the web.
+ */
 export function bangkokTimestamp(date = new Date()) {
-  return date.toLocaleString('th-TH', { timeZone: 'Asia/Bangkok' });
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Bangkok',
+    day: 'numeric',
+    month: 'numeric',
+    year: 'numeric',
+    hour: '2-digit',
+    minute: '2-digit',
+    hour12: false,
+  }).formatToParts(date);
+
+  const get = (type) => parts.find((part) => part.type === type)?.value ?? '';
+  const buddhistYear = Number(get('year')) + 543;
+
+  return `${Number(get('day'))}/${Number(get('month'))}/${buddhistYear} ${get('hour')}:${get('minute')}`;
 }
 
 /**

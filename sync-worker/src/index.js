@@ -23,13 +23,12 @@ async function runSync(env) {
   const result = await syncDepositsToSheet(
     env.SHEET_ID,
     env.SHEET_TAB_NAME,
-    env.RECEIVED_TAB_NAME,
     token,
     deposits,
   );
 
   console.log(
-    `Synced ${deposits.length} deposits: ${result.updated} updated, ${result.appended} appended`,
+    `Synced ${deposits.length} deposits: ${result.updated} updated, ${result.created} created`,
   );
   return result;
 }

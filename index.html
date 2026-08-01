@@ -8,24 +8,20 @@
   <meta name="robots" content="noindex, nofollow" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
-  <!-- Fonts: Prompt & Kanit for Thai -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Kanit:wght@300;400;500;600;700&family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
 
   <script type="module" src="/src/main.js"></script>
 </head>
 <body>
   <div id="app">
 
-    <!-- LOGIN GATE — shown until Firebase Auth confirms a session. Everything
-         else in #app stays hidden behind this; there is no public view. -->
+    <!-- LOGIN GATE — shown until Firebase Auth confirms a session. -->
     <div id="auth-gate" class="auth-gate">
       <div class="auth-gate-card">
-        <div class="brand-icon auth-gate-icon">
-          <i data-lucide="shield-check"></i>
-        </div>
-        <h1>ระบบจัดเก็บข้อมูลมัดจำสินค้า</h1>
+        <div class="auth-gate-icon"><i data-lucide="shield-check"></i></div>
+        <h1>ระบบจัดเก็บข้อมูลมัดจำ</h1>
         <p class="text-muted">สำหรับพนักงานเท่านั้น กรุณากรอกรหัสผ่านเพื่อเข้าใช้งาน</p>
 
         <form id="auth-gate-form">
@@ -41,123 +37,82 @@
           </div>
 
           <button type="submit" id="auth-gate-submit" class="btn btn-primary btn-block btn-lg">
-            <i data-lucide="log-in"></i>
-            <span>เข้าสู่ระบบ</span>
+            <i data-lucide="log-in"></i><span>เข้าสู่ระบบ</span>
           </button>
         </form>
       </div>
     </div>
 
-    <!-- APP CONTENT — hidden until signed in -->
-    <div id="app-content" class="hidden">
+    <!-- APP — sidebar shell -->
+    <div id="app-content" class="shell hidden">
 
-      <!-- Navbar Header -->
-      <header class="navbar">
-        <div class="nav-container">
-          <div class="brand">
-            <div class="brand-icon">
-              <i data-lucide="shield-check"></i>
-            </div>
-            <div class="brand-text">
-              <h1>DepositTracker</h1>
-              <span class="brand-tag"><i data-lucide="lock"></i> ระบบภายใน — พนักงานเท่านั้น</span>
-            </div>
-          </div>
-
-          <div class="nav-actions">
-            <span id="connection-status" class="status-pill status-pill-ok conn-pill">
-              <i data-lucide="refresh-cw"></i>
-              <span>กำลังเชื่อมต่อ...</span>
-            </span>
-
-            <button id="theme-toggle-btn" class="btn-icon" title="เปลี่ยนธีม">
-              <i data-lucide="sun" id="theme-icon"></i>
-            </button>
-
-            <button id="add-open-btn" class="btn btn-primary">
-              <i data-lucide="plus-circle"></i>
-              <span>เพิ่มมัดจำ</span>
-            </button>
-
-            <button id="logout-btn" class="btn-icon btn-icon-danger" title="ออกจากระบบ">
-              <i data-lucide="log-out"></i>
-            </button>
-          </div>
-        </div>
-      </header>
-
-      <!-- Main Content Area — single page -->
-      <main class="main-container">
-
-        <!-- Compact metric tiles -->
-        <div class="metrics-grid">
-          <div class="metric-card">
-            <div class="metric-icon icon-green"><i data-lucide="wallet"></i></div>
-            <div class="metric-content">
-              <span class="metric-label">ยอดมัดจำถือครอง</span>
-              <h3 id="metric-total-amount" class="metric-value text-success">฿0</h3>
-            </div>
-          </div>
-
-          <div class="metric-card">
-            <div class="metric-icon icon-navy"><i data-lucide="package-check"></i></div>
-            <div class="metric-content">
-              <span class="metric-label">รายการที่รอรับ</span>
-              <h3 id="metric-total-count" class="metric-value">0 รายการ</h3>
-            </div>
-          </div>
-
-          <div class="metric-card">
-            <div class="metric-icon icon-amber"><i data-lucide="calendar-check"></i></div>
-            <div class="metric-content">
-              <span class="metric-label">ยอดมัดจำวันนี้</span>
-              <h3 id="metric-today-amount" class="metric-value">฿0</h3>
-            </div>
-          </div>
+      <aside class="sidebar" id="sidebar">
+        <div class="side-brand">
+          <span class="side-logo"><i data-lucide="wallet"></i></span>
+          <span class="side-name">DEPOSIT</span>
         </div>
 
-        <!-- Toolbar: single search + view toggle + export -->
-        <div class="table-toolbar">
+        <nav class="side-nav">
+          <button class="nav-item is-active" id="nav-pending" data-mode="pending">
+            <i data-lucide="clock"></i><span>รอรับของ</span><em class="nav-count" id="count-pending">0</em>
+          </button>
+          <button class="nav-item" id="nav-received" data-mode="received">
+            <i data-lucide="check-check"></i><span>รับแล้ว</span><em class="nav-count" id="count-received">0</em>
+          </button>
+          <button class="nav-item" id="nav-deleted" data-mode="deleted">
+            <i data-lucide="trash-2"></i><span>ลบแล้ว</span><em class="nav-count" id="count-deleted">0</em>
+          </button>
+        </nav>
+
+        <div class="side-foot">
+          <button class="nav-item" id="export-csv-btn"><i data-lucide="download"></i><span>ส่งออก CSV</span></button>
+          <button class="nav-item" id="theme-toggle-btn"><i data-lucide="sun" id="theme-icon"></i><span id="theme-label">ธีมมืด</span></button>
+          <button class="nav-item nav-danger" id="logout-btn"><i data-lucide="log-out"></i><span>ออกจากระบบ</span></button>
+        </div>
+      </aside>
+
+      <main class="content">
+        <div class="content-top">
+          <button class="btn-icon side-toggle" id="sidebar-toggle" title="เมนู"><i data-lucide="menu"></i></button>
+
           <div class="search-box">
             <i data-lucide="search"></i>
             <input type="text" id="search-input" placeholder="ค้นหา ชื่อ, ชื่อเล่น, เบอร์โทร, หรือสินค้า..." autocomplete="off" />
             <button id="search-clear-btn" class="btn-clear hidden">&times;</button>
           </div>
 
-          <div class="toolbar-buttons">
-            <div class="mode-toggle" role="group" aria-label="สลับมุมมอง">
-              <button id="mode-pending-btn" class="btn btn-sm mode-btn is-active" data-mode="pending">
-                <i data-lucide="clock"></i> รอรับของ
-              </button>
-              <button id="mode-received-btn" class="btn btn-sm mode-btn" data-mode="received">
-                <i data-lucide="check-check"></i> รับของแล้ว
-              </button>
-            </div>
-            <button id="export-csv-btn" class="btn btn-outline btn-sm" title="ส่งออก CSV">
-              <i data-lucide="download"></i> <span class="btn-label">ส่งออก</span>
-            </button>
+          <span id="connection-status" class="conn-pill"><i data-lucide="refresh-cw"></i><span>เชื่อมต่อ</span></span>
+
+          <button id="add-open-btn" class="btn btn-primary">
+            <i data-lucide="plus-circle"></i><span>เพิ่มมัดจำ</span>
+          </button>
+        </div>
+
+        <div class="kpi-grid">
+          <div class="kpi kpi-mint">
+            <span class="kpi-label">ยอดมัดจำถือครอง</span>
+            <span class="kpi-value mono" id="metric-total-amount">฿0</span>
+          </div>
+          <div class="kpi kpi-amber">
+            <span class="kpi-label">รายการที่รอรับ</span>
+            <span class="kpi-value mono" id="metric-total-count">0</span>
+          </div>
+          <div class="kpi kpi-blue">
+            <span class="kpi-label">ยอดมัดจำวันนี้</span>
+            <span class="kpi-value mono" id="metric-today-amount">฿0</span>
           </div>
         </div>
 
-        <!-- Grouped-by-date list -->
         <div id="grouped-dates-container"></div>
 
         <div id="table-empty-state" class="empty-state hidden">
           <i data-lucide="inbox"></i>
           <p>ไม่พบข้อมูลรายการมัดจำ</p>
         </div>
-
       </main>
-
-      <!-- Footer -->
-      <footer class="footer">
-        <div class="footer-container">
-          <p>&copy; 2026 Deposit Tracker — ระบบภายใน สำหรับพนักงานที่ได้รับอนุญาตเท่านั้น</p>
-        </div>
-      </footer>
     </div>
 
-    <!-- ADD DEPOSIT — slide-over panel (off-canvas from the right) -->
+    <!-- ADD DEPOSIT — slide-over -->
     <div id="add-overlay" class="drawer-overlay hidden"></div>
     <aside id="add-panel" class="drawer" aria-hidden="true">
       <div class="drawer-header">
@@ -208,17 +163,13 @@
           <p class="drawer-note"><i data-lucide="lock"></i> ระบบภายใน — ห้ามเผยแพร่ข้อมูลลูกค้าให้บุคคลภายนอก</p>
 
           <button type="submit" id="submit-btn" class="btn btn-primary btn-block btn-lg">
-            <i data-lucide="save"></i>
-            <span>บันทึกรายการมัดจำ</span>
+            <i data-lucide="save"></i><span>บันทึกรายการมัดจำ</span>
           </button>
         </form>
       </div>
     </aside>
 
-    <!-- Toast Container -->
     <div id="toast-container" class="toast-container"></div>
-
   </div>
-
 </body>
 </html>

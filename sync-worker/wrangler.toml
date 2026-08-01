@@ -13,4 +13,3 @@ crons = ["*/5 * * * *"]
 FIRESTORE_PROJECT_ID = "deposit-tracker-2026"
 SHEET_ID = "1AvMnLCzcIrksa8n8_-c3fneE5qfCqZ2Ztb_b9qcPBUc"
 SHEET_TAB_NAME = "Deposits"
-RECEIVED_TAB_NAME = "รับของแล้ว"

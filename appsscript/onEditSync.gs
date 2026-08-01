@@ -1,72 +1,128 @@
 /**
- * Installable onEdit trigger for the Deposits sheet.
+ * Apps Script for the DepositTracker sheet.
  *
- * Two jobs when staff edit the "Deposits" tab:
- *   1. A brand-new row (blank column A) gets an id, the current date/time, and
- *      the default status filled in automatically — so staff only type a name.
- *   2. Every edited row is mirrored into Firestore via the Cloudflare Pages
- *      Function (Sheet -> Firestore half of the two-way sync).
+ * The sheet is the shop's PRIMARY place to record deposits — not a mirror — so
+ * this script has to make typing a row feel instant and tidy: it fills in the
+ * date, the id and the default status for a brand-new row, and pushes every
+ * finished row up to the web app.
  *
- * The status column (H) is a dropdown:
- *   รอการจัดส่งสินค้า  → status "pending"   (waiting for the customer)
- *   รับสินค้าแล้ว       → status "received"  (collected; the sync worker moves
- *                                             this row to the "รับของแล้ว" tab)
- *   ลบแล้ว              → soft-deleted
+ * Column layout — ONE tab holds every deposit whatever its status:
+ *   A วันที่และเวลา     filled in automatically for a new row
+ *   B ชื่อจริง
+ *   C ชื่อเล่น
+ *   D เบอร์โทร
+ *   E สินค้าที่มัดจำ
+ *   F ยอดมัดจำ (บาท)
+ *   G สถานะ             dropdown; changing it here updates the web app
+ *   H depositId          system — hidden, filled automatically, never typed
+ *   I อัปเดตล่าสุด       system — hidden
+ *
+ * Nothing is ever moved or blanked: a collected deposit just flips column G and
+ * stays on its row, so the sheet is the permanent record.
  *
  * Writes made through the Sheets API (how the sync worker writes) do NOT fire
  * onEdit — Google only fires it for edits through the Sheets UI — so the
- * worker's own writes never loop back here, and the setValue() calls below
- * (which come from this script) don't re-trigger it either.
+ * worker's writes never loop back, and the setValue() calls below don't
+ * re-trigger this either.
  *
  * SETUP: paste into the sheet's Apps Script project, add Script Properties
- * SYNC_WEBHOOK_URL + SYNC_SHARED_SECRET, then add an installable "On edit"
- * trigger for onEditInstallable.
+ * SYNC_WEBHOOK_URL + SYNC_SHARED_SECRET, add an installable "On edit" trigger
+ * for onEditInstallable, then run setupSheet() once from the editor (or use the
+ * "DepositTracker" menu that appears in the sheet).
  */
 
 const SHEET_NAME = 'Deposits';
 const COLUMN_COUNT = 9; // A..I
 
+// 1-based column positions, so the layout is stated once.
+const COL = {
+  timestamp: 1,   // A
+  firstName: 2,   // B
+  nickname: 3,    // C
+  phone: 4,       // D
+  item: 5,        // E
+  amount: 6,      // F
+  status: 7,      // G
+  depositId: 8,   // H
+  updatedAt: 9,   // I
+};
+
+const HEADER_ROW = [
+  'วันที่และเวลา', 'ชื่อจริง', 'ชื่อเล่น', 'เบอร์โทร',
+  'สินค้าที่มัดจำ', 'ยอดมัดจำ (บาท)', 'สถานะ', 'depositId', 'อัปเดตล่าสุด',
+];
+
 const STATUS_PENDING = 'รอการจัดส่งสินค้า';
 const STATUS_RECEIVED = 'รับสินค้าแล้ว';
 const STATUS_DELETED = 'ลบแล้ว';
 
-/** Thai display timestamp (Buddhist year), matching what the web app writes. */
+/**
+ * Display timestamp in Bangkok time with a Buddhist year, e.g. "1/8/2569 02:21".
+ *
+ * Built part-by-part on purpose. src/utils.js's bangkokTimestamp() produces the
+ * byte-identical string, so a row reads the same whether it was typed here or
+ * saved from the web — an earlier version used `new Date()` directly and left
+ * rows like "Tue Aug 01 2569 02:21:42 GMT+0700 (Indochina Time)" next to Thai
+ * ones. Keep the two in sync if this ever changes.
+ */
 function thaiTimestamp() {
   const d = new Date();
   const tz = 'Asia/Bangkok';
   const buddhistYear = Number(Utilities.formatDate(d, tz, 'yyyy')) + 543;
-  return (
-    Utilities.formatDate(d, tz, 'd/M/') + buddhistYear + Utilities.formatDate(d, tz, ' HH:mm:ss')
-  );
+  return Utilities.formatDate(d, tz, 'd/M/') + buddhistYear + Utilities.formatDate(d, tz, ' HH:mm');
+}
+
+/** Strip "฿" / thousands separators so a typed amount still reads as a number. */
+function toAmount(value) {
+  if (typeof value === 'number') return value;
+  const cleaned = String(value == null ? '' : value).replace(/[^\d.]/g, '');
+  return Number(cleaned) || 0;
 }
 
 function onEditInstallable(e) {
   const sheet = e.range.getSheet();
   if (sheet.getName() !== SHEET_NAME) return;
-  if (e.range.getRow() === 1) return; // header row
 
   const row = e.range.getRow();
+  if (row === 1) return; // header
+
   const rowRange = sheet.getRange(row, 1, 1, COLUMN_COUNT);
-  let [depositId, timestamp, firstName, nickname, phoneNumber, depositItem, depositAmount, status] =
-    rowRange.getValues()[0];
+  const values = rowRange.getValues()[0];
 
-  const hasContent = firstName || nickname || phoneNumber || depositItem;
-  if (!hasContent && !depositId) return; // a fully blank row — nothing to sync
+  let timestamp = values[COL.timestamp - 1];
+  const firstName = values[COL.firstName - 1];
+  const nickname = values[COL.nickname - 1];
+  const phoneNumber = values[COL.phone - 1];
+  const depositItem = values[COL.item - 1];
+  const depositAmount = values[COL.amount - 1];
+  let status = values[COL.status - 1];
+  let depositId = values[COL.depositId - 1];
 
-  // A brand-new row typed straight into the sheet: fill in the fields staff
-  // shouldn't have to type. These setValue() calls don't re-fire this trigger.
+  const hasContent = firstName || nickname || phoneNumber || depositItem || depositAmount;
+  if (!hasContent && !depositId) return; // fully blank row — nothing to do
+
+  // A brand-new row typed straight into the sheet: fill in what staff shouldn't
+  // have to type. These setValue() calls don't re-fire this trigger.
   if (!depositId) {
     depositId = Utilities.getUuid();
-    sheet.getRange(row, 1).setValue(depositId);
+    sheet.getRange(row, COL.depositId).setValue(depositId);
     if (!timestamp) {
       timestamp = thaiTimestamp();
-      sheet.getRange(row, 2).setValue(timestamp);
+      sheet.getRange(row, COL.timestamp).setValue(timestamp);
     }
     if (!status) {
       status = STATUS_PENDING;
-      sheet.getRange(row, 8).setValue(status);
+      sheet.getRange(row, COL.status).setValue(status);
     }
   }
+
+  // Don't publish a half-typed row. onEdit fires on every single cell, so a row
+  // being filled in left-to-right would otherwise hit the webhook once per
+  // keystroke-group and be rejected (it requires a name and a positive amount)
+  // until the last field lands. Waiting for both keeps the sheet quiet while
+  // typing; the row syncs the moment it is actually complete.
+  const amount = toAmount(depositAmount);
+  if (!firstName || amount <= 0) return;
 
   const props = PropertiesService.getScriptProperties();
   const webhookUrl = props.getProperty('SYNC_WEBHOOK_URL');
@@ -80,11 +136,11 @@ function onEditInstallable(e) {
   const payload = {
     depositId: String(depositId),
     timestamp: String(timestamp || ''),
-    firstName: String(firstName || ''),
+    firstName: String(firstName),
     nickname: String(nickname || ''),
     phoneNumber: String(phoneNumber || ''),
     depositItem: String(depositItem || ''),
-    depositAmount: Number(depositAmount) || 0,
+    depositAmount: amount,
     status: statusStr === STATUS_RECEIVED ? 'received' : 'pending',
     deleted: statusStr === STATUS_DELETED,
   };
@@ -106,132 +162,107 @@ function onEditInstallable(e) {
   }
 }
 
-/**
- * One-time setup: run this manually once from the Apps Script editor.
- *   1. Creates the "รับของแล้ว" archive tab (same 9-column header) if missing.
- *   2. Puts the status dropdown on column H of both tabs.
- * Safe to run again — it skips whatever already exists.
- */
-function setupSheet() {
-  const ss = SpreadsheetApp.getActive();
-  const active = ss.getSheetByName(SHEET_NAME);
-  if (!active) throw new Error('ไม่พบแท็บ ' + SHEET_NAME);
-
-  const RECEIVED_NAME = 'รับของแล้ว';
-  let received = ss.getSheetByName(RECEIVED_NAME);
-  if (!received) {
-    // Copy keeps the header row and formatting; clear any data rows after.
-    received = active.copyTo(ss).setName(RECEIVED_NAME);
-    const lastRow = received.getLastRow();
-    if (lastRow > 1) received.getRange(2, 1, lastRow - 1, COLUMN_COUNT).clearContent();
-  }
-
-  const rule = SpreadsheetApp.newDataValidation()
-    .requireValueInList([STATUS_PENDING, STATUS_RECEIVED, STATUS_DELETED], true)
-    .setAllowInvalid(false)
-    .build();
-  [active, received].forEach(function (sh) {
-    sh.getRange(2, 8, 1000, 1).setDataValidation(rule);
-  });
-
-  SpreadsheetApp.getActive().toast('ตั้งค่าแท็บ "รับของแล้ว" + dropdown สถานะ เรียบร้อย', 'setupSheet', 5);
+/** Adds a menu so setupSheet() can be run from the sheet, not the editor. */
+function onOpen() {
+  SpreadsheetApp.getUi()
+    .createMenu('DepositTracker')
+    .addItem('จัดรูปแบบชีตให้สวยงาม', 'setupSheet')
+    .addToUi();
 }
 
 /**
- * Premium "navy" restyle of both tabs. Run once from the editor; safe to re-run
- * — it rebuilds the same styles each time. This is the canonical source for the
- * sheet design; keep it in sync with any design applied directly via the Sheets
- * API. Presentation only — it never touches cell values, so it can't disturb the
- * sync.
+ * Lay out and style the sheet. Run once after pasting this script; safe to
+ * re-run any time the sheet starts looking wrong — it rebuilds the same result.
  *
- * The look: bold white header (deep navy on "Deposits", deep green on the
- * "รับของแล้ว" archive to signal "done"), Sarabun font, subtle alternating row
- * stripes, a "฿" amount column, colour-coded status chips (amber pending / green
- * received / red deleted), and greyed-out struck-through deleted rows. The two
- * system columns (A depositId, I อัปเดตล่าสุด) are made narrow and muted — NOT
- * hidden. Hiding column A is what caused runaway duplicate rows: Google's
- * values.append starts writing at the first *visible* column, so a hidden
- * column A pushes every appended row one column to the right and column A (the
- * key the sync matches on) stays empty forever. Keep column A visible. The
- * status column IS hidden on the archive tab, where every row is "received" so
- * the column is redundant — hiding a middle column is safe for append.
+ * Presentation and validation only: it never reads or writes deposit values, so
+ * it cannot disturb the sync.
+ *
+ * Note on hiding columns: the id column lives at H, away from column A, and the
+ * sync worker writes rows at explicit A{n}:I{n} ranges rather than using
+ * values.append. That combination is what makes hiding H and I safe — append
+ * anchors on the first *visible* column, so with a hidden column A it used to
+ * shift every new row one column right and duplicate deposits forever.
  */
-function beautifySheet() {
+function setupSheet() {
   const ss = SpreadsheetApp.getActive();
+  const sh = ss.getSheetByName(SHEET_NAME);
+  if (!sh) throw new Error('ไม่พบแท็บ ' + SHEET_NAME);
+
   const NAVY = '#0F172A';
-  const GREEN = '#166534';
-  const MUTE = '#C5CAD3';
-  const tabColors = { 'Deposits': '#F59E0B', 'รับของแล้ว': '#10B981' };
+  const MUTED = '#C5CAD3';
+  const maxRows = Math.max(sh.getMaxRows(), 2);
+  const numData = maxRows - 1;
 
-  ['Deposits', 'รับของแล้ว'].forEach(function (name) {
-    const sh = ss.getSheetByName(name);
-    if (!sh) return;
-    const isArchive = name === 'รับของแล้ว';
-    const maxRows = Math.max(sh.getMaxRows(), 2);
-    const numData = maxRows - 1;
+  // --- header ---------------------------------------------------------------
+  sh.getRange(1, 1, 1, COLUMN_COUNT).setValues([HEADER_ROW])
+    .setBackground(NAVY).setFontColor('#FFFFFF').setFontWeight('bold')
+    .setFontSize(11).setFontFamily('Sarabun')
+    .setHorizontalAlignment('center').setVerticalAlignment('middle');
+  sh.setFrozenRows(1);
+  sh.setRowHeight(1, 42);
+  sh.setTabColor('#0F172A');
 
-    sh.setFrozenRows(1);
-    sh.setTabColor(tabColors[name]);
-    sh.setRowHeight(1, 42);
-    sh.setRowHeights(2, numData, 30);
+  // --- body -----------------------------------------------------------------
+  sh.setRowHeights(2, numData, 30);
+  sh.getRange(2, 1, numData, COLUMN_COUNT)
+    .setFontFamily('Sarabun').setFontSize(10).setFontColor('#1E293B')
+    .setVerticalAlignment('middle');
 
-    // Header: white bold; navy on the active tab, green on the archive.
-    sh.getRange(1, 1, 1, 9)
-      .setBackground(isArchive ? GREEN : NAVY).setFontColor('#FFFFFF').setFontWeight('bold')
-      .setFontSize(11).setFontFamily('Sarabun')
-      .setHorizontalAlignment('center').setVerticalAlignment('middle');
+  sh.getRange(2, COL.timestamp, numData, 1).setHorizontalAlignment('center');
+  sh.getRange(2, COL.firstName, numData, 2).setHorizontalAlignment('left');
+  sh.getRange(2, COL.phone, numData, 1).setHorizontalAlignment('center');
+  sh.getRange(2, COL.item, numData, 1).setHorizontalAlignment('left').setWrap(true);
+  sh.getRange(2, COL.amount, numData, 1)
+    .setNumberFormat('"฿"#,##0').setHorizontalAlignment('right')
+    .setFontWeight('bold').setFontColor(NAVY);
+  sh.getRange(2, COL.status, numData, 1).setHorizontalAlignment('center').setFontWeight('bold');
+  sh.getRange(2, COL.depositId, numData, 2).setFontColor(MUTED).setFontSize(8);
 
-    // Base body text.
-    sh.getRange(2, 1, numData, 9)
-      .setFontFamily('Sarabun').setFontSize(10).setFontColor('#1E293B')
-      .setVerticalAlignment('middle');
-
-    // Per-column alignment / formatting.
-    sh.getRange(2, 2, numData, 1).setHorizontalAlignment('center'); // date
-    sh.getRange(2, 3, numData, 2).setHorizontalAlignment('left');   // first + nick
-    sh.getRange(2, 5, numData, 1).setHorizontalAlignment('center'); // phone
-    sh.getRange(2, 6, numData, 1).setHorizontalAlignment('left').setWrap(true); // product
-    sh.getRange(2, 7, numData, 1)
-      .setNumberFormat('"฿"#,##0').setHorizontalAlignment('right')
-      .setFontWeight('bold').setFontColor(NAVY); // amount
-    sh.getRange(2, 8, numData, 1).setHorizontalAlignment('center').setFontWeight('bold'); // status
-
-    // Column widths. A (depositId) and I (updatedAtIso) are kept narrow, and
-    // their body text is muted grey below — visible but unobtrusive. They must
-    // NOT be hidden (a hidden column A breaks append; see the header comment).
-    [46, 130, 110, 90, 130, 240, 130, 160, 46].forEach(function (w, i) {
-      sh.setColumnWidth(i + 1, w);
-    });
-    sh.getRange(2, 1, numData, 1).setFontColor(MUTE).setFontSize(8); // A depositId
-    sh.getRange(2, 9, numData, 1).setFontColor(MUTE).setFontSize(8); // I อัปเดตล่าสุด
-    sh.showColumns(1, 9); // undo any earlier hide, then hide only what's safe
-    if (isArchive) sh.hideColumns(8); // status column — redundant in the archive
-
-    // Subtle alternating stripes (rebuild to stay idempotent).
-    sh.getBandings().forEach(function (b) { b.remove(); });
-    const banding = sh.getRange(2, 1, numData, 9).applyRowBanding();
-    banding.setHeaderRowColor(null).setFooterRowColor(null)
-      .setFirstRowColor('#FFFFFF').setSecondRowColor('#F1F5F9');
-
-    // Status chips on column H, then a greyed struck-through tint on deleted rows.
-    // The chip rules come first so a deleted row keeps its red status chip while
-    // the rest of the row goes grey.
-    const statusCol = sh.getRange(2, 8, numData, 1);
-    const dataRange = sh.getRange(2, 1, numData, 9);
-    sh.setConditionalFormatRules([
-      SpreadsheetApp.newConditionalFormatRule()
-        .whenTextEqualTo('รอการจัดส่งสินค้า').setBackground('#FEF3C7').setFontColor('#92400E').setBold(true)
-        .setRanges([statusCol]).build(),
-      SpreadsheetApp.newConditionalFormatRule()
-        .whenTextEqualTo('รับสินค้าแล้ว').setBackground('#DCFCE7').setFontColor('#166534').setBold(true)
-        .setRanges([statusCol]).build(),
-      SpreadsheetApp.newConditionalFormatRule()
-        .whenTextEqualTo('ลบแล้ว').setBackground('#FEE2E2').setFontColor('#991B1B').setBold(true)
-        .setRanges([statusCol]).build(),
-      SpreadsheetApp.newConditionalFormatRule()
-        .whenFormulaSatisfied('=$H2="ลบแล้ว"').setBackground('#FEF2F2').setFontColor('#9CA3AF').setStrikethrough(true)
-        .setRanges([dataRange]).build(),
-    ]);
+  // --- columns --------------------------------------------------------------
+  [150, 120, 100, 130, 260, 130, 170, 60, 60].forEach(function (w, i) {
+    sh.setColumnWidth(i + 1, w);
   });
-  ss.toast('ตกแต่งชีตธีมพรีเมี่ยมเรียบร้อย', 'beautifySheet', 5);
+  sh.showColumns(1, COLUMN_COUNT);
+  sh.hideColumns(COL.depositId, 2); // H (id) + I (updatedAt) — system only
+
+  // --- alternating stripes (rebuilt so re-running stays idempotent) ----------
+  // Clear any hard-set cell background first. Rows appended by the old sync
+  // inherited the header's dark navy, and hand-colouring left other rows tinted;
+  // an explicit background always wins over banding and conditional formatting,
+  // so those rows would keep showing the wrong colour otherwise.
+  sh.getRange(2, 1, numData, COLUMN_COUNT).setBackground(null);
+  sh.getBandings().forEach(function (b) { b.remove(); });
+  sh.getRange(2, 1, numData, COLUMN_COUNT).applyRowBanding()
+    .setHeaderRowColor(null).setFooterRowColor(null)
+    .setFirstRowColor('#FFFFFF').setSecondRowColor('#F1F5F9');
+
+  // --- status dropdown + colours -------------------------------------------
+  const statusCol = sh.getRange(2, COL.status, numData, 1);
+  statusCol.setDataValidation(
+    SpreadsheetApp.newDataValidation()
+      .requireValueInList([STATUS_PENDING, STATUS_RECEIVED, STATUS_DELETED], true)
+      .setAllowInvalid(false)
+      .build(),
+  );
+
+  // Chip rules come first so a deleted row keeps its red status chip while the
+  // rest of the row greys out.
+  const dataRange = sh.getRange(2, 1, numData, COLUMN_COUNT);
+  sh.setConditionalFormatRules([
+    SpreadsheetApp.newConditionalFormatRule()
+      .whenTextEqualTo(STATUS_PENDING).setBackground('#FEF3C7').setFontColor('#92400E').setBold(true)
+      .setRanges([statusCol]).build(),
+    SpreadsheetApp.newConditionalFormatRule()
+      .whenTextEqualTo(STATUS_RECEIVED).setBackground('#DCFCE7').setFontColor('#166534').setBold(true)
+      .setRanges([statusCol]).build(),
+    SpreadsheetApp.newConditionalFormatRule()
+      .whenTextEqualTo(STATUS_DELETED).setBackground('#FEE2E2').setFontColor('#991B1B').setBold(true)
+      .setRanges([statusCol]).build(),
+    SpreadsheetApp.newConditionalFormatRule()
+      .whenFormulaSatisfied('=$G2="' + STATUS_DELETED + '"')
+      .setBackground('#FEF2F2').setFontColor('#9CA3AF').setStrikethrough(true)
+      .setRanges([dataRange]).build(),
+  ]);
+
+  ss.toast('จัดรูปแบบชีตเรียบร้อย', 'DepositTracker', 5);
 }
