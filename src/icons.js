@@ -57,6 +57,7 @@ import {
   Trash2,
   User,
   Wallet,
+  X,
 } from 'lucide';
 
 export const appIcons = {
@@ -105,4 +106,5 @@ export const appIcons = {
   Trash2,
   User,
   Wallet,
+  X,
 };

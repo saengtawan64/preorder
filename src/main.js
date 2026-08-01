@@ -36,19 +36,13 @@ const el = {
 
   themeToggleBtn: document.getElementById('theme-toggle-btn'),
   themeIcon: document.getElementById('theme-icon'),
-  switchViewBtn: document.getElementById('switch-view-btn'),
-  viewToggleText: document.getElementById('view-toggle-text'),
   logoutBtn: document.getElementById('logout-btn'),
 
-  lookupView: document.getElementById('lookup-view'),
-  dashboardView: document.getElementById('dashboard-view'),
-
-  publicSearchInput: document.getElementById('public-search-input'),
-  publicSearchClear: document.getElementById('public-search-clear'),
-  searchResultsSection: document.getElementById('search-results-section'),
-  resultsCountBadge: document.getElementById('results-count-badge'),
-  resultsCardsGrid: document.getElementById('results-cards-grid'),
-
+  // Add-deposit slide-over
+  addOpenBtn: document.getElementById('add-open-btn'),
+  addPanel: document.getElementById('add-panel'),
+  addOverlay: document.getElementById('add-overlay'),
+  addCloseBtn: document.getElementById('add-close-btn'),
   contactForm: document.getElementById('contact-form'),
   firstNameInput: document.getElementById('first-name'),
   nicknameInput: document.getElementById('nickname'),
@@ -56,14 +50,12 @@ const el = {
   depositItemInput: document.getElementById('deposit-item'),
   depositAmountInput: document.getElementById('deposit-amount'),
   submitBtn: document.getElementById('submit-btn'),
-  submissionSuccessCard: document.getElementById('submission-success-card'),
-  submittedDetailsBox: document.getElementById('submitted-details-box'),
-  resetFormBtn: document.getElementById('reset-form-btn'),
 
+  // Single search + list
+  searchInput: document.getElementById('search-input'),
+  searchClearBtn: document.getElementById('search-clear-btn'),
   connectionStatus: document.getElementById('connection-status'),
   groupedDatesContainer: document.getElementById('grouped-dates-container'),
-  adminSearchInput: document.getElementById('admin-search-input'),
-  adminClearSearchBtn: document.getElementById('admin-clear-search-btn'),
   tableEmptyState: document.getElementById('table-empty-state'),
   exportCsvBtn: document.getElementById('export-csv-btn'),
   modePendingBtn: document.getElementById('mode-pending-btn'),
@@ -148,7 +140,7 @@ let unsubscribeDeposits = null;
 
 function setConnectionStatus(text, variant = 'ok') {
   if (!el.connectionStatus) return;
-  el.connectionStatus.className = `status-pill status-pill-${variant}`;
+  el.connectionStatus.className = `status-pill status-pill-${variant} conn-pill`;
   el.connectionStatus.innerHTML = `<i data-lucide="${variant === 'error' ? 'alert-triangle' : 'refresh-cw'}"></i><span>${escapeHtml(text)}</span>`;
   refreshIcons();
 }
@@ -157,9 +149,8 @@ function startDepositsFeed() {
   if (unsubscribeDeposits) return;
   unsubscribeDeposits = subscribeDeposits((records) => {
     state.deposits = records;
-    setConnectionStatus('เชื่อมต่อสด (real-time)', 'ok');
-    renderDashboard();
-    renderPublicSearch();
+    setConnectionStatus('เชื่อมต่อสด', 'ok');
+    renderList();
   });
 }
 
@@ -178,6 +169,7 @@ function showApp() {
 }
 
 function showGate() {
+  closeAddDrawer();
   el.appContent.classList.add('hidden');
   el.authGate.classList.remove('hidden');
   el.authGatePassword.value = '';
@@ -238,7 +230,7 @@ el.logoutBtn.addEventListener('click', async () => {
   toast('ออกจากระบบเรียบร้อยแล้ว', 'info');
 });
 
-/* -------------------------------------------------------- public search --- */
+/* --------------------------------------------------------- list + search -- */
 
 function matchesQuery(record, needle, needleDigits) {
   const first = (record.firstName || '').toLowerCase();
@@ -254,76 +246,11 @@ function matchesQuery(record, needle, needleDigits) {
   );
 }
 
-function renderPublicSearch() {
-  const raw = el.publicSearchInput.value.trim();
-  const needle = raw.toLowerCase();
-
-  if (!needle) {
-    el.searchResultsSection.classList.add('hidden');
-    el.publicSearchClear.classList.add('hidden');
-    return;
-  }
-
-  el.publicSearchClear.classList.remove('hidden');
-
-  const needleDigits = needle.replace(/\D/g, '');
-  const matches = state.deposits.filter((record) => matchesQuery(record, needle, needleDigits));
-
-  el.searchResultsSection.classList.remove('hidden');
-  el.resultsCountBadge.innerText = `พบ ${matches.length} รายการ`;
-
-  if (matches.length === 0) {
-    el.resultsCardsGrid.innerHTML = `
-      <div class="empty-state" style="grid-column: 1 / -1;">
-        <i data-lucide="search-x"></i>
-        <p>ไม่พบรายการมัดจำสำหรับ "${escapeHtml(raw)}"</p>
-      </div>
-    `;
-    refreshIcons();
-    return;
-  }
-
-  el.resultsCardsGrid.innerHTML = matches
-    .map(
-      (record) => `
-    <div class="deposit-card">
-      <div class="deposit-card-header">
-        <div class="item-title">
-          <i data-lucide="package"></i> ${escapeHtml(record.depositItem)}
-        </div>
-        <span class="date-badge"><i data-lucide="calendar"></i> ${escapeHtml(record.timestamp)}</span>
-      </div>
-
-      <div class="deposit-amount-box">
-        <span class="amount-label">ยอดเงินมัดจำ</span>
-        <span class="amount-value">${formatBaht(record.depositAmount)}</span>
-      </div>
-
-      <div class="customer-info-box">
-        <div class="info-row">
-          <i data-lucide="user"></i>
-          <span>ชื่อ: <strong>${escapeHtml(record.firstName)} (ชื่อเล่น: ${escapeHtml(record.nickname)})</strong></span>
-        </div>
-        <div class="info-row">
-          <i data-lucide="phone"></i>
-          <span>เบอร์โทร: <strong class="phone-tag">${escapeHtml(formatPhone(record.phoneNumber))}</strong></span>
-        </div>
-      </div>
-    </div>
-  `,
-    )
-    .join('');
-
-  refreshIcons();
-}
-
-/* ------------------------------------------------------------ dashboard --- */
-
 function sumAmounts(records) {
   return records.reduce((total, record) => total + (Number(record.depositAmount) || 0), 0);
 }
 
-// The dashboard shows one of two lists: deposits still waiting to be collected
+// The list shows one of two sets: deposits still waiting to be collected
 // ('pending', the default working view), or the archive of collected ones
 // ('received'). Records with no status are treated as pending (older data).
 let dashboardMode = 'pending';
@@ -369,6 +296,12 @@ function groupByDate(records) {
   });
 }
 
+function statusChip(record) {
+  return isReceived(record)
+    ? '<span class="status-chip chip-received">รับแล้ว</span>'
+    : '<span class="status-chip chip-pending">รอรับของ</span>';
+}
+
 function renderDateGroup(date, records) {
   const dayTotal = sumAmounts(records);
 
@@ -376,13 +309,13 @@ function renderDateGroup(date, records) {
     .map(
       (record, index) => `
       <tr>
-        <td>${index + 1}</td>
+        <td class="text-muted text-sm">${index + 1}</td>
         <td><strong>${escapeHtml(record.firstName)}</strong></td>
         <td>${escapeHtml(record.nickname)}</td>
         <td><span class="phone-tag">${escapeHtml(formatPhone(record.phoneNumber))}</span></td>
-        <td><strong><i data-lucide="package" style="width: 14px; height: 14px; display: inline;"></i> ${escapeHtml(record.depositItem)}</strong></td>
+        <td class="product-cell">${escapeHtml(record.depositItem)}</td>
         <td class="amount-cell">${formatBaht(record.depositAmount)}</td>
-        <td class="text-muted text-sm">${escapeHtml(record.timestamp)}</td>
+        <td class="text-center">${statusChip(record)}</td>
         <td class="text-center">
           <div class="action-btns">
             ${
@@ -413,10 +346,10 @@ function renderDateGroup(date, records) {
     <div class="date-group-block">
       <div class="date-group-header">
         <div class="date-title">
-          <i data-lucide="calendar"></i> วันที่ ${escapeHtml(date)} (${records.length} รายการ)
+          <i data-lucide="calendar"></i> ${escapeHtml(date)} · ${records.length} รายการ
         </div>
         <div class="date-summary-tag">
-          รวมมัดจำประจำวัน: ${formatBaht(dayTotal)}
+          รวมมัดจำ ${formatBaht(dayTotal)}
         </div>
       </div>
 
@@ -424,14 +357,14 @@ function renderDateGroup(date, records) {
         <table class="data-table">
           <thead>
             <tr>
-              <th width="50">#</th>
+              <th width="40">#</th>
               <th>ชื่อจริง</th>
               <th>ชื่อเล่น</th>
               <th>เบอร์โทร</th>
               <th>สินค้าที่มัดจำ</th>
-              <th>ยอดมัดจำ (บาท)</th>
-              <th>เวลาบันทึก</th>
-              <th width="100" class="text-center">จัดการ</th>
+              <th>ยอดมัดจำ</th>
+              <th class="text-center">สถานะ</th>
+              <th width="110" class="text-center">จัดการ</th>
             </tr>
           </thead>
           <tbody>${rows}</tbody>
@@ -441,12 +374,12 @@ function renderDateGroup(date, records) {
   `;
 }
 
-function renderDashboard() {
+function renderList() {
   renderMetrics();
   syncModeButtons();
 
   const base = depositsForMode();
-  const needle = el.adminSearchInput.value.toLowerCase().trim();
+  const needle = el.searchInput.value.toLowerCase().trim();
   const needleDigits = needle.replace(/\D/g, '');
   const visible = needle
     ? base.filter((record) => matchesQuery(record, needle, needleDigits))
@@ -466,7 +399,7 @@ function renderDashboard() {
   refreshIcons();
 }
 
-/* Delegated so the handlers survive every dashboard re-render. */
+/* Delegated so the handlers survive every list re-render. */
 el.groupedDatesContainer.addEventListener('click', async (event) => {
   const copyBtn = event.target.closest('.copy-info-btn');
   if (copyBtn) {
@@ -510,7 +443,7 @@ el.groupedDatesContainer.addEventListener('click', async (event) => {
   requestSheetSync();
 });
 
-/* ------------------------------------------------------ dashboard mode --- */
+/* ------------------------------------------------------------ list mode --- */
 
 function syncModeButtons() {
   el.modePendingBtn.classList.toggle('is-active', dashboardMode === 'pending');
@@ -520,31 +453,34 @@ function syncModeButtons() {
 function setDashboardMode(mode) {
   if (dashboardMode === mode) return;
   dashboardMode = mode;
-  renderDashboard();
+  renderList();
 }
 
 el.modePendingBtn.addEventListener('click', () => setDashboardMode('pending'));
 el.modeReceivedBtn.addEventListener('click', () => setDashboardMode('received'));
 
-/* ------------------------------------------------------------ view toggle --- */
+/* --------------------------------------------------- add-deposit drawer --- */
 
-function toggleView() {
-  const showingLookup = !el.lookupView.classList.contains('hidden');
-
-  if (showingLookup) {
-    el.lookupView.classList.add('hidden');
-    el.dashboardView.classList.remove('hidden');
-    el.viewToggleText.innerText = 'ไปที่หน้าค้นหา / บันทึกมัดจำ';
-  } else {
-    el.dashboardView.classList.add('hidden');
-    el.lookupView.classList.remove('hidden');
-    el.viewToggleText.innerText = 'ไปที่หน้าแดชบอร์ด';
-  }
-
-  refreshIcons();
+function openAddDrawer() {
+  el.addPanel.classList.add('open');
+  el.addPanel.setAttribute('aria-hidden', 'false');
+  el.addOverlay.classList.remove('hidden');
+  el.firstNameInput.focus();
 }
 
-el.switchViewBtn.addEventListener('click', toggleView);
+function closeAddDrawer() {
+  el.addPanel.classList.remove('open');
+  el.addPanel.setAttribute('aria-hidden', 'true');
+  el.addOverlay.classList.add('hidden');
+}
+
+el.addOpenBtn.addEventListener('click', openAddDrawer);
+el.addCloseBtn.addEventListener('click', closeAddDrawer);
+el.addOverlay.addEventListener('click', closeAddDrawer);
+
+document.addEventListener('keydown', (event) => {
+  if (event.key === 'Escape') closeAddDrawer();
+});
 
 /* ----------------------------------------------------------------- form --- */
 
@@ -585,58 +521,26 @@ el.contactForm.addEventListener('submit', async (event) => {
     return;
   }
 
-  el.submittedDetailsBox.innerHTML = `
-    <div class="detail-item">
-      <span>ชื่อ - ชื่อเล่น</span>
-      <strong>${escapeHtml(record.firstName)} (${escapeHtml(record.nickname)})</strong>
-    </div>
-    <div class="detail-item">
-      <span>เบอร์โทร</span>
-      <strong>${escapeHtml(record.phoneNumber)}</strong>
-    </div>
-    <div class="detail-item">
-      <span>สินค้ามัดจำ</span>
-      <strong>${escapeHtml(record.depositItem)}</strong>
-    </div>
-    <div class="detail-item">
-      <span>ยอดเงินมัดจำ</span>
-      <strong class="text-success">${formatBaht(record.depositAmount)}</strong>
-    </div>
-  `;
-
-  el.contactForm.parentElement.classList.add('hidden');
-  el.submissionSuccessCard.classList.remove('hidden');
-  toast('บันทึกข้อมูลสำเร็จ', 'success');
+  el.contactForm.reset();
+  closeAddDrawer();
+  toast(`บันทึกมัดจำ "${record.firstName}" เรียบร้อย`, 'success');
 
   requestSheetSync();
-  renderDashboard();
-  renderPublicSearch();
-});
-
-el.resetFormBtn.addEventListener('click', () => {
-  el.contactForm.reset();
-  el.submissionSuccessCard.classList.add('hidden');
-  el.contactForm.parentElement.classList.remove('hidden');
-  el.firstNameInput.focus();
+  // The real-time listener re-renders the list; call once for instant feedback.
+  renderList();
 });
 
 /* --------------------------------------------------------------- search --- */
 
-el.publicSearchInput.addEventListener('input', renderPublicSearch);
-el.publicSearchClear.addEventListener('click', () => {
-  el.publicSearchInput.value = '';
-  renderPublicSearch();
+el.searchInput.addEventListener('input', (event) => {
+  el.searchClearBtn.classList.toggle('hidden', !event.target.value);
+  renderList();
 });
 
-el.adminSearchInput.addEventListener('input', (event) => {
-  el.adminClearSearchBtn.classList.toggle('hidden', !event.target.value);
-  renderDashboard();
-});
-
-el.adminClearSearchBtn.addEventListener('click', () => {
-  el.adminSearchInput.value = '';
-  el.adminClearSearchBtn.classList.add('hidden');
-  renderDashboard();
+el.searchClearBtn.addEventListener('click', () => {
+  el.searchInput.value = '';
+  el.searchClearBtn.classList.add('hidden');
+  renderList();
 });
 
 /* ----------------------------------------------------------- CSV export --- */
@@ -676,16 +580,9 @@ el.exportCsvBtn.addEventListener('click', () => {
   toast('ส่งออกไฟล์ CSV เรียบร้อยแล้ว', 'success');
 });
 
-/* --------------------------------------------------------------- modals --- */
-
-document.addEventListener('keydown', (event) => {
-  if (event.key !== 'Escape') return;
-  // No modals left to close, but kept as a hook for future ones.
-});
+/* ------------------------------------------------------------------ init --- */
 
 el.themeToggleBtn.addEventListener('click', toggleTheme);
-
-/* ------------------------------------------------------------------ init --- */
 
 applyTheme();
 refreshIcons();

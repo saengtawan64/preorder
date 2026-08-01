@@ -13,7 +13,7 @@
 const THEME_KEY = 'theme';
 
 export const state = {
-  theme: localStorage.getItem(THEME_KEY) || 'dark',
+  theme: localStorage.getItem(THEME_KEY) || 'light',
   isSignedIn: false,
   deposits: [],
 };
