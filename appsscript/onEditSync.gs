@@ -65,11 +65,29 @@ const STATUS_DELETED = 'ลบแล้ว';
  * rows like "Tue Aug 01 2569 02:21:42 GMT+0700 (Indochina Time)" next to Thai
  * ones. Keep the two in sync if this ever changes.
  */
-function thaiTimestamp() {
-  const d = new Date();
+function formatThai(d) {
   const tz = 'Asia/Bangkok';
   const buddhistYear = Number(Utilities.formatDate(d, tz, 'yyyy')) + 543;
   return Utilities.formatDate(d, tz, 'd/M/') + buddhistYear + Utilities.formatDate(d, tz, ' HH:mm');
+}
+
+function thaiTimestamp() {
+  return formatThai(new Date());
+}
+
+/**
+ * The timestamp column as display text, whatever the cell actually holds.
+ *
+ * setValue() with a date-looking string makes Sheets parse it and store a real
+ * date, so the next edit reads a Date object back — and String(date) is
+ * "Wed Aug 02 2569 11:07:00 GMT+0700 (Indochina Time)", which is what used to
+ * reach Firestore and then the sheet. Writes now pin the cell to plain text,
+ * and this converts anything already stored as a date back to the canonical
+ * string.
+ */
+function timestampText(value) {
+  if (value instanceof Date) return formatThai(value);
+  return String(value == null ? '' : value).trim();
 }
 
 /** Strip "฿" / thousands separators so a typed amount still reads as a number. */
@@ -89,7 +107,8 @@ function onEditInstallable(e) {
   const rowRange = sheet.getRange(row, 1, 1, COLUMN_COUNT);
   const values = rowRange.getValues()[0];
 
-  let timestamp = values[COL.timestamp - 1];
+  const rawTimestamp = values[COL.timestamp - 1];
+  let timestamp = timestampText(rawTimestamp);
   const firstName = values[COL.firstName - 1];
   const nickname = values[COL.nickname - 1];
   const phoneNumber = values[COL.phone - 1];
@@ -108,12 +127,18 @@ function onEditInstallable(e) {
     sheet.getRange(row, COL.depositId).setValue(depositId);
     if (!timestamp) {
       timestamp = thaiTimestamp();
-      sheet.getRange(row, COL.timestamp).setValue(timestamp);
+      // setNumberFormat('@') first: without it Sheets parses the date-looking
+      // string into a real date, and the next edit reads a Date back out.
+      sheet.getRange(row, COL.timestamp).setNumberFormat('@').setValue(timestamp);
     }
     if (!status) {
       status = STATUS_PENDING;
       sheet.getRange(row, COL.status).setValue(status);
     }
+  } else if (rawTimestamp instanceof Date) {
+    // A row from before the fix, still holding a real date — put the canonical
+    // text back so it stops re-entering the system in the long format.
+    sheet.getRange(row, COL.timestamp).setNumberFormat('@').setValue(timestamp);
   }
 
   // Don't publish a half-typed row. onEdit fires on every single cell, so a row
@@ -208,7 +233,8 @@ function setupSheet() {
     .setFontFamily('Sarabun').setFontSize(10).setFontColor('#1E293B')
     .setVerticalAlignment('middle');
 
-  sh.getRange(2, COL.timestamp, numData, 1).setHorizontalAlignment('center');
+  // Plain text, so a written timestamp is never silently parsed into a date.
+  sh.getRange(2, COL.timestamp, numData, 1).setHorizontalAlignment('center').setNumberFormat('@');
   sh.getRange(2, COL.firstName, numData, 2).setHorizontalAlignment('left');
   sh.getRange(2, COL.phone, numData, 1).setHorizontalAlignment('center');
   sh.getRange(2, COL.item, numData, 1).setHorizontalAlignment('left').setWrap(true);
