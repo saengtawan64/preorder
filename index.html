@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>ระบบจัดเก็บและตรวจสอบมัดจำสินค้า</title>
+  <title>BSD · ระบบจัดเก็บและตรวจสอบมัดจำสินค้า</title>
   <meta name="description" content="ระบบภายในสำหรับพนักงาน — บันทึกและตรวจสอบข้อมูลมัดจำสินค้า" />
   <meta name="robots" content="noindex, nofollow" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
@@ -20,8 +20,9 @@
     <!-- LOGIN GATE — shown until Firebase Auth confirms a session. -->
     <div id="auth-gate" class="auth-gate">
       <div class="auth-gate-card">
-        <div class="auth-gate-icon"><i data-lucide="shield-check"></i></div>
-        <h1>ระบบจัดเก็บข้อมูลมัดจำ</h1>
+        <img src="/logo.svg" alt="Banana Secure Deposit" class="auth-gate-logo" width="72" height="72" />
+        <h1>BANANA <span>SECURE DEPOSIT</span></h1>
+        <p class="auth-gate-sub">Secure · Trusted · Organized</p>
         <p class="text-muted">สำหรับพนักงานเท่านั้น กรุณากรอกรหัสผ่านเพื่อเข้าใช้งาน</p>
 
         <form id="auth-gate-form">
@@ -48,8 +49,8 @@
 
       <aside class="sidebar" id="sidebar">
         <div class="side-brand">
-          <span class="side-logo"><i data-lucide="wallet"></i></span>
-          <span class="side-name">DEPOSIT</span>
+          <img src="/logo.svg" alt="" class="side-logo" width="30" height="30" />
+          <span class="side-name">BSD<small>Secure Deposit</small></span>
         </div>
 
         <nav class="side-nav">
@@ -89,7 +90,7 @@
         </div>
 
         <div class="kpi-grid">
-          <div class="kpi kpi-mint">
+          <div class="kpi kpi-gold">
             <span class="kpi-label">ยอดมัดจำถือครอง</span>
             <span class="kpi-value mono" id="metric-total-amount">฿0</span>
           </div>

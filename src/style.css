@@ -1,14 +1,23 @@
 /* ============================================================= tokens === */
-/* Style: dark rail + light workspace, mint accent.
+/* Style: dark rail + light workspace, gold accent from the BSD shield logo.
    The sidebar stays dark in BOTH themes on purpose — that constant contrast is
    what makes the workspace read as "the page" and the rail as "the chrome".
-   Only the content area flips between day and night. Status colours are the
-   same ones the Google Sheet uses, so a row looks the same in both places. */
+   Only the content area flips between day and night.
+
+   Gold is the brand: logo, active nav, primary button, money figures. It is
+   deliberately NOT used for status — pending/received/deleted keep the amber,
+   green and red the Google Sheet uses, so a row reads the same in both places
+   and gold never means "a state". */
 :root {
-  --rail: #131a22;
-  --rail-2: #1c242d;
-  --rail-text: #7e8b99;
-  --rail-text-strong: #e6ecf2;
+  --rail: #141416;
+  --rail-2: #212126;
+  --rail-text: #8a8a93;
+  --rail-text-strong: #f2f2f4;
+
+  --gold: #f5c518;
+  --gold-ink: #191505;
+  --gold-soft: #fdf4d4;
+  --gold-deep: #8a6a00;
 
   --mint: #2dd4a7;
   --mint-ink: #0b1015;
@@ -32,9 +41,9 @@
   --text-secondary: #5a6672;
   --text-muted: #93a0ab;
 
-  --btn: #0b1015;
-  --btn-hover: #232c35;
-  --btn-text: #ffffff;
+  --btn: #f5c518;
+  --btn-hover: #ffd84a;
+  --btn-text: #191505;
 
   --r-sm: 7px;
   --r: 9px;
@@ -58,6 +67,8 @@
   --text-secondary: #8497a8;
   --text-muted: #6e8092;
 
+  --gold-soft: rgba(245, 197, 24, .16);
+  --gold-deep: #f0c34a;
   --mint-soft: rgba(45, 212, 167, .16);
   --mint-deep: #63d7b8;
   --amber-soft: rgba(240, 169, 59, .16);
@@ -65,9 +76,9 @@
   --rose-soft: rgba(226, 87, 76, .16);
   --rose-deep: #ef8880;
 
-  --btn: #2dd4a7;
-  --btn-hover: #4de0ba;
-  --btn-text: #0b1015;
+  --btn: #f5c518;
+  --btn-hover: #ffd84a;
+  --btn-text: #191505;
 
   --shadow-sm: 0 1px 2px rgba(0, 0, 0, .3);
   --shadow-md: 0 8px 24px rgba(0, 0, 0, .45);
@@ -98,13 +109,13 @@ body {
   display: flex; flex-direction: column;
   position: sticky; top: 0; height: 100vh;
 }
-.side-brand { display: flex; align-items: center; gap: 8px; padding: 0 6px; margin-bottom: 16px }
-.side-logo {
-  width: 28px; height: 28px; border-radius: var(--r-sm);
-  background: var(--mint); color: var(--mint-ink);
-  display: flex; align-items: center; justify-content: center; flex-shrink: 0;
+.side-brand { display: flex; align-items: center; gap: 9px; padding: 0 4px; margin-bottom: 16px }
+.side-logo { width: 30px; height: 30px; flex-shrink: 0; display: block }
+.side-name { font-size: .74rem; font-weight: 600; letter-spacing: .1em; color: var(--rail-text-strong); line-height: 1.2 }
+.side-name small {
+  display: block; font-size: .58rem; font-weight: 400; letter-spacing: .06em;
+  color: var(--gold); margin-top: 1px;
 }
-.side-name { font-size: .78rem; font-weight: 600; letter-spacing: .08em; color: var(--rail-text-strong) }
 .side-nav { display: flex; flex-direction: column; gap: 2px }
 .side-foot { margin-top: auto; display: flex; flex-direction: column; gap: 2px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, .07) }
 
@@ -117,14 +128,14 @@ body {
   cursor: pointer; text-align: left; transition: var(--t);
 }
 .nav-item:hover { background: var(--rail-2); color: var(--rail-text-strong) }
-.nav-item.is-active { background: var(--mint); color: var(--mint-ink); font-weight: 500 }
+.nav-item.is-active { background: var(--gold); color: var(--gold-ink); font-weight: 500 }
 .nav-item.nav-danger:hover { background: rgba(226, 87, 76, .15); color: #ff8f86 }
 .nav-count {
   margin-left: auto; font-style: normal; font-size: .7rem; font-weight: 500;
   padding: 1px 6px; border-radius: 5px;
   background: var(--rail-2); color: var(--rail-text);
 }
-.nav-item.is-active .nav-count { background: rgba(11, 16, 21, .18); color: var(--mint-ink) }
+.nav-item.is-active .nav-count { background: rgba(25, 21, 5, .2); color: var(--gold-ink) }
 
 /* ============================================================ content === */
 .content { padding: 16px 20px 32px; min-width: 0 }
@@ -151,7 +162,7 @@ body {
   padding: 9px 12px;
   display: flex; flex-direction: column;
 }
-.kpi-mint { border-left-color: var(--mint) }
+.kpi-gold { border-left-color: var(--gold) }
 .kpi-amber { border-left-color: var(--amber) }
 .kpi-blue { border-left-color: var(--blue) }
 .kpi-label {
@@ -159,7 +170,7 @@ body {
   color: var(--text-secondary);
 }
 .kpi-value { font-size: 1.15rem; font-weight: 600; line-height: 1.3 }
-.kpi-mint .kpi-value { color: var(--mint-deep) }
+.kpi-gold .kpi-value { color: var(--gold-deep) }
 
 /* ------------------------------------------------------- date groups ---- */
 #grouped-dates-container { display: flex; flex-direction: column; gap: 11px }
@@ -178,10 +189,10 @@ body {
   flex-wrap: wrap; gap: .4rem;
 }
 .date-title { font-size: .82rem; font-weight: 600; display: flex; align-items: center; gap: .4rem }
-.date-title i { color: var(--mint-deep) }
+.date-title i { color: var(--gold-deep) }
 .date-summary-tag {
   font-size: .78rem; font-weight: 600;
-  background: var(--mint-soft); color: var(--mint-deep);
+  background: var(--gold-soft); color: var(--gold-deep);
   padding: .15rem .65rem; border-radius: var(--r-full);
 }
 
@@ -272,7 +283,7 @@ input[type=text], input[type=tel], input[type=number], input[type=password] {
   font-family: var(--font); font-size: .82rem; transition: var(--t);
 }
 input::placeholder { color: var(--text-muted) }
-input:focus { outline: none; border-color: var(--mint); box-shadow: 0 0 0 3px var(--mint-soft) }
+input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px var(--gold-soft) }
 .input-hint { font-size: .7rem; color: var(--text-muted) }
 .error-msg { color: var(--rose); font-size: .78rem; margin-top: .25rem; display: block }
 
@@ -301,7 +312,7 @@ input:focus { outline: none; border-color: var(--mint); box-shadow: 0 0 0 3px va
 .toast-container { position: fixed; bottom: 1.25rem; right: 1.25rem; z-index: 2000; display: flex; flex-direction: column; gap: .5rem }
 .toast {
   background: var(--surface); color: var(--text);
-  border: 1px solid var(--border); border-left: 3px solid var(--mint);
+  border: 1px solid var(--border); border-left: 3px solid var(--gold);
   padding: .65rem 1rem; border-radius: var(--r);
   box-shadow: var(--shadow-md);
   display: flex; align-items: center; gap: .55rem;
@@ -320,12 +331,15 @@ input:focus { outline: none; border-color: var(--mint); box-shadow: 0 0 0 3px va
   border-radius: var(--r-lg); box-shadow: var(--shadow-md);
   padding: 2rem 1.6rem; text-align: center;
 }
-.auth-gate-icon {
-  width: 46px; height: 46px; margin: 0 auto 1rem;
-  border-radius: var(--r); background: var(--mint); color: var(--mint-ink);
-  display: flex; align-items: center; justify-content: center;
+.auth-gate-logo { width: 72px; height: 72px; margin: 0 auto .85rem; display: block }
+.auth-gate-card h1 {
+  font-size: 1.05rem; font-weight: 600; letter-spacing: .06em; margin-bottom: .1rem;
 }
-.auth-gate-card h1 { font-size: 1.1rem; font-weight: 600; margin-bottom: .3rem }
+.auth-gate-card h1 span { color: var(--gold-deep) }
+.auth-gate-sub {
+  font-size: .68rem; letter-spacing: .16em; text-transform: uppercase;
+  color: var(--text-muted); margin-bottom: .5rem;
+}
 .auth-gate-card .form-group { text-align: left; margin: 1.3rem 0 1rem }
 
 /* ============================================================= motion === */
