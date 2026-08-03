@@ -23,7 +23,7 @@ async function serviceToken(env) {
   return getAccessToken(JSON.parse(env.GCP_SERVICE_ACCOUNT_KEY), 'https://www.googleapis.com/auth/datastore');
 }
 
-/** "32087" -> "3•••7" — enough to tell two PINs apart, not enough to use one. */
+/** "12345" -> "1•••5" — enough to tell two PINs apart, not enough to use one. */
 const mask = (pin) => pin.length < 3 ? '•'.repeat(pin.length) : pin[0] + '•'.repeat(pin.length - 2) + pin[pin.length - 1];
 
 export async function onRequestGet({ request, env }) {
