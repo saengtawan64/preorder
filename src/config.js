@@ -36,10 +36,6 @@ export function getFirebaseConfig() {
   };
 }
 
-/**
- * The single shared staff account's email. Never shown in the UI — the login
- * screen only asks for the password, so it feels like unlocking a phone.
- */
-export function getStaffLoginEmail() {
-  return fromEnv('VITE_STAFF_LOGIN_EMAIL') || 'staff@deposit-tracker.local';
-}
+// The old email/password login is gone — unlocking is a 5-digit PIN checked by
+// functions/api/pin-login.js, so no account identifier is needed on the client.
+// VITE_STAFF_LOGIN_EMAIL in .env is unused and can be removed.

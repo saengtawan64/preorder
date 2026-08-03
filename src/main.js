@@ -4,7 +4,7 @@ import { createIcons } from 'lucide';
 
 import { appIcons } from './icons.js';
 import { getFirebaseConfig } from './config.js';
-import { onAuthChange, signIn, signOutUser, getIdToken } from './auth.js';
+import { onAuthChange, signInWithPin, signOutUser, getIdToken } from './auth.js';
 import {
   initFirebase,
   softDeleteDeposit,
@@ -29,11 +29,9 @@ import {
 
 const el = {
   authGate: document.getElementById('auth-gate'),
-  authGateForm: document.getElementById('auth-gate-form'),
-  authGatePassword: document.getElementById('auth-gate-password'),
-  authGateToggleVis: document.getElementById('auth-gate-toggle-vis'),
   authGateError: document.getElementById('auth-gate-error'),
-  authGateSubmit: document.getElementById('auth-gate-submit'),
+  pinDots: document.getElementById('pin-dots'),
+  pinPad: document.getElementById('pin-pad'),
   appContent: document.getElementById('app-content'),
 
   sidebar: document.getElementById('sidebar'),
@@ -186,8 +184,8 @@ function showGate() {
   el.sidebar.classList.remove('open');
   el.appContent.classList.add('hidden');
   el.authGate.classList.remove('hidden');
-  el.authGatePassword.value = '';
   el.authGateError.classList.add('hidden');
+  resetPin();
   stopDepositsFeed();
 }
 
@@ -210,31 +208,78 @@ onAuthChange((signedIn) => {
   else showGate();
 });
 
-el.authGateForm.addEventListener('submit', async (event) => {
-  event.preventDefault();
+/* ------------------------------------------------------------- PIN pad --- */
 
-  const password = el.authGatePassword.value;
-  el.authGateSubmit.disabled = true;
+const PIN_LENGTH = 5;
+let pinBuffer = '';
+let pinBusy = false;
+
+function paintPin() {
+  [...el.pinDots.children].forEach((dot, i) => {
+    dot.classList.toggle('filled', i < pinBuffer.length);
+  });
+}
+
+function resetPin({ shake = false } = {}) {
+  pinBuffer = '';
+  paintPin();
+  if (!shake) return;
+  el.pinDots.classList.remove('shake');
+  void el.pinDots.offsetWidth; // restart the animation
+  el.pinDots.classList.add('shake');
+}
+
+async function submitPin() {
+  pinBusy = true;
+  el.pinPad.classList.add('busy');
   el.authGateError.classList.add('hidden');
 
-  const result = await signIn(password);
-  el.authGateSubmit.disabled = false;
+  const result = await signInWithPin(pinBuffer);
 
-  if (!result.ok) {
-    el.authGateError.textContent =
-      result.reason === 'throttled'
-        ? 'พยายามเข้าสู่ระบบผิดหลายครั้งเกินไป กรุณารอสักครู่แล้วลองใหม่'
-        : 'รหัสผ่านไม่ถูกต้อง';
-    el.authGateError.classList.remove('hidden');
-    el.authGatePassword.value = '';
-    el.authGatePassword.focus();
+  pinBusy = false;
+  el.pinPad.classList.remove('busy');
+
+  if (result.ok) return; // onAuthChange shows the app
+
+  const message = {
+    throttled: 'ใส่รหัสผิดหลายครั้งเกินไป กรุณารอ 15 นาทีแล้วลองใหม่',
+    offline: 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ กรุณาลองใหม่',
+  }[result.reason] || (
+    typeof result.attemptsLeft === 'number' && result.attemptsLeft <= 3
+      ? `รหัสไม่ถูกต้อง (เหลือ ${result.attemptsLeft} ครั้ง)`
+      : 'รหัสไม่ถูกต้อง'
+  );
+
+  el.authGateError.textContent = message;
+  el.authGateError.classList.remove('hidden');
+  resetPin({ shake: true });
+}
+
+function pushPin(key) {
+  if (pinBusy) return;
+
+  if (key === 'del') {
+    pinBuffer = pinBuffer.slice(0, -1);
+    paintPin();
+    return;
   }
-  // On success, onAuthChange fires and shows the app — nothing else to do here.
+  if (!/^\d$/.test(key) || pinBuffer.length >= PIN_LENGTH) return;
+
+  pinBuffer += key;
+  paintPin();
+  el.authGateError.classList.add('hidden');
+  if (pinBuffer.length === PIN_LENGTH) submitPin();
+}
+
+el.pinPad.addEventListener('click', (event) => {
+  const button = event.target.closest('button[data-key]');
+  if (button) pushPin(button.getAttribute('data-key'));
 });
 
-el.authGateToggleVis.addEventListener('click', () => {
-  const next = el.authGatePassword.getAttribute('type') === 'password' ? 'text' : 'password';
-  el.authGatePassword.setAttribute('type', next);
+document.addEventListener('keydown', (event) => {
+  if (el.authGate.classList.contains('hidden')) return;
+  if (/^\d$/.test(event.key)) pushPin(event.key);
+  else if (event.key === 'Backspace') pushPin('del');
 });
 
 el.logoutBtn.addEventListener('click', async () => {

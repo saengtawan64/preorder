@@ -23,24 +23,27 @@
         <img src="/logo.svg" alt="Banana Secure Deposit" class="auth-gate-logo" width="72" height="72" />
         <h1>BANANA <span>SECURE DEPOSIT</span></h1>
         <p class="auth-gate-sub">Secure · Trusted · Organized</p>
-        <p class="text-muted">สำหรับพนักงานเท่านั้น กรุณากรอกรหัสผ่านเพื่อเข้าใช้งาน</p>
+        <p class="text-muted">ใส่รหัส 5 หลักเพื่อปลดล็อก</p>
 
-        <form id="auth-gate-form">
-          <div class="form-group">
-            <label for="auth-gate-password"><i data-lucide="key-round"></i> รหัสผ่าน</label>
-            <div class="input-wrapper">
-              <input type="password" id="auth-gate-password" placeholder="••••••••" required autofocus />
-              <button type="button" id="auth-gate-toggle-vis" class="btn-icon-inside">
-                <i data-lucide="eye"></i>
-              </button>
-            </div>
-            <small id="auth-gate-error" class="error-msg hidden"></small>
-          </div>
+        <div class="pin-dots" id="pin-dots" role="status" aria-label="รหัสผ่าน 5 หลัก">
+          <span></span><span></span><span></span><span></span><span></span>
+        </div>
+        <small id="auth-gate-error" class="error-msg hidden"></small>
 
-          <button type="submit" id="auth-gate-submit" class="btn btn-primary btn-block btn-lg">
-            <i data-lucide="log-in"></i><span>เข้าสู่ระบบ</span>
-          </button>
-        </form>
+        <div class="pin-pad" id="pin-pad">
+          <button type="button" data-key="1">1</button>
+          <button type="button" data-key="2">2</button>
+          <button type="button" data-key="3">3</button>
+          <button type="button" data-key="4">4</button>
+          <button type="button" data-key="5">5</button>
+          <button type="button" data-key="6">6</button>
+          <button type="button" data-key="7">7</button>
+          <button type="button" data-key="8">8</button>
+          <button type="button" data-key="9">9</button>
+          <span></span>
+          <button type="button" data-key="0">0</button>
+          <button type="button" data-key="del" class="pin-del" aria-label="ลบ"><i data-lucide="delete"></i></button>
+        </div>
       </div>
     </div>
 
