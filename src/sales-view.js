@@ -9,7 +9,7 @@
  * loosening the policy for one bar chart isn't a good trade.
  */
 
-import { BRANDS, DEFAULT_TARGETS, BRAND_GROUPS, daysLeftIn } from './sales.js';
+import { BRANDS, BRAND_GROUPS, daysLeftIn } from './sales.js';
 import { escapeHtml } from './utils.js';
 
 const baht = (n) => '฿' + Math.round(n).toLocaleString('th-TH');
@@ -40,7 +40,7 @@ function momChange(current, previous) {
   return ((current - previous) / previous) * 100;
 }
 
-function renderKpis(month, prevMonth, mode) {
+function renderKpis(month, prevMonth, mode, targets) {
   const isAmount = mode === 'amount';
   const total = isAmount ? month.totalAmount : month.totalUnits;
   const prevTotal = prevMonth ? (isAmount ? prevMonth.totalAmount : prevMonth.totalUnits) : 0;
@@ -50,26 +50,33 @@ function renderKpis(month, prevMonth, mode) {
     ? '<span class="kpi-sub">ไม่มีเดือนก่อนให้เทียบ</span>'
     : `<span class="kpi-sub ${mom >= 0 ? 'up' : 'down'}">${mom >= 0 ? '▲' : '▼'} ${Math.abs(mom).toFixed(1)}% จาก ${escapeHtml(prevMonth.label)}</span>`;
 
-  // Pace is always measured in baht — targets are set in baht, and converting
-  // them to a device count would be a guess.
-  const target = Object.values(DEFAULT_TARGETS).reduce((a, b) => a + b, 0);
+  // Everything target-related stays in baht — targets are set in baht, and
+  // converting them to a device count would be a guess.
+  const target = Object.values(targets).reduce((a, b) => a + b, 0);
   const remaining = Math.max(target - month.totalAmount, 0);
   const left = daysLeftIn(month.month, month.year);
+  const pct = target > 0 ? (month.totalAmount / target) * 100 : 0;
+
+  const remainValue = remaining === 0 ? 'ปิดเป้าแล้ว' : baht(remaining);
+  const remainSub = remaining === 0
+    ? `เกินเป้า ${shortBaht(month.totalAmount - target)}`
+    : `จากเป้า ${shortBaht(target)} · ทำได้ ${pct.toFixed(0)}%`;
+
   const paceValue = remaining === 0
-    ? 'บรรลุเป้าแล้ว'
+    ? '—'
     : left === 0 ? 'จบเดือนแล้ว' : baht(remaining / left);
   const paceSub = remaining === 0
-    ? `เป้า ${shortBaht(target)}`
-    : left === 0 ? `ขาดอีก ${shortBaht(remaining)}` : `ต่อวัน · เหลือ ${left} วัน`;
+    ? 'ไม่ต้องขายเพิ่มแล้ว'
+    : left === 0 ? `ปิดไม่ทัน ขาด ${shortBaht(remaining)}` : `ต่อวัน · เหลือ ${left} วัน`;
 
   const asp = month.totalUnits > 0 ? month.totalAmount / month.totalUnits : 0;
 
   return `
     <div class="kpi-grid">
       ${kpiCard('ยอดขายรวม', isAmount ? baht(total) : units(total) + ' เครื่อง', momText, 'kpi-gold')}
-      ${kpiCard('ต้องขายให้ถึงเป้า', paceValue, `<span class="kpi-sub">${escapeHtml(paceSub)}</span>`, 'kpi-amber')}
-      ${kpiCard('ราคาเฉลี่ยต่อเครื่อง', baht(asp), `<span class="kpi-sub">${units(month.totalUnits)} เครื่อง</span>`, 'kpi-blue')}
-      ${kpiCard('วันที่มีการขาย', `${month.activeDays} วัน`, `<span class="kpi-sub">ในเดือน ${escapeHtml(month.label)}</span>`)}
+      ${kpiCard('เหลืออีกเท่าไหร่ถึงปิดเป้า', remainValue, `<span class="kpi-sub">${escapeHtml(remainSub)}</span>`, remaining === 0 ? 'kpi-mint' : 'kpi-amber')}
+      ${kpiCard('ต้องขายวันละ', paceValue, `<span class="kpi-sub">${escapeHtml(paceSub)}</span>`, 'kpi-blue')}
+      ${kpiCard('ราคาเฉลี่ยต่อเครื่อง', baht(asp), `<span class="kpi-sub">${units(month.totalUnits)} เครื่อง · ขาย ${month.activeDays} วัน</span>`)}
     </div>`;
 }
 
@@ -118,23 +125,54 @@ function renderBrandBars(month, prevMonth, mode) {
     </div>`;
 }
 
-function renderTargets(month, groupKey) {
+function renderTargets(month, groupKey, targets, editing) {
   const group = BRAND_GROUPS[groupKey] || BRAND_GROUPS.all;
-  const target = group.brands.reduce((sum, key) => sum + (DEFAULT_TARGETS[key] || 0), 0);
+  const target = group.brands.reduce((sum, key) => sum + (targets[key] || 0), 0);
   const actual = group.brands.reduce((sum, key) => sum + month.brands[key].amount, 0);
   const pct = target > 0 ? Math.min((actual / target) * 100, 100) : 0;
   const shortfall = Math.max(target - actual, 0);
 
+  // Editing shows every brand, not just the current group — a target belongs to
+  // the shop, not to whichever group happens to be on screen.
+  if (editing) {
+    const inputs = BRANDS.map(({ key }) => `
+      <div class="target-edit-row">
+        <label for="target-${key}">${escapeHtml(key)}</label>
+        <input type="number" id="target-${key}" data-brand="${key}"
+               value="${targets[key] ?? 0}" min="0" step="1000" inputmode="numeric" />
+      </div>`).join('');
+
+    return `
+      <div class="date-group-block">
+        <div class="date-group-header">
+          <div class="date-title"><i data-lucide="target"></i> แก้ไขเป้ายอดขายรายเดือน</div>
+          <span class="kpi-sub">หน่วยเป็นบาท · ใช้ร่วมกันทั้งร้าน</span>
+        </div>
+        <div class="target-edit">
+          ${inputs}
+          <div class="target-edit-total">
+            รวมทุกแบรนด์ <strong class="mono" id="target-edit-total">${baht(Object.values(targets).reduce((a, b) => a + b, 0))}</strong>
+          </div>
+          <div class="target-edit-actions">
+            <button id="targets-cancel" class="btn btn-outline btn-sm">ยกเลิก</button>
+            <button id="targets-save" class="btn btn-primary btn-sm"><i data-lucide="save"></i> บันทึกเป้า</button>
+          </div>
+          <p id="targets-msg" class="error-msg hidden"></p>
+        </div>
+      </div>`;
+  }
+
   const perBrand = group.brands.map((key) => {
-    const brandTarget = DEFAULT_TARGETS[key] || 0;
+    const brandTarget = targets[key] || 0;
     const brandActual = month.brands[key].amount;
     const brandPct = brandTarget > 0 ? Math.min((brandActual / brandTarget) * 100, 100) : 0;
+    const brandLeft = Math.max(brandTarget - brandActual, 0);
     return `
       <div class="target-row">
         <div class="target-name">${escapeHtml(key)}</div>
         <div class="target-track"><div class="target-fill" style="width:${brandPct}%"></div></div>
         <div class="target-pct mono">${brandPct.toFixed(0)}%</div>
-        <div class="target-num mono">${shortBaht(brandActual)} / ${shortBaht(brandTarget)}</div>
+        <div class="target-num mono">${brandLeft > 0 ? `เหลือ ${shortBaht(brandLeft)}` : 'ปิดเป้าแล้ว'}</div>
       </div>`;
   }).join('');
 
@@ -142,16 +180,19 @@ function renderTargets(month, groupKey) {
     <div class="date-group-block">
       <div class="date-group-header">
         <div class="date-title"><i data-lucide="target"></i> ความคืบหน้าเทียบเป้า</div>
-        <select id="sales-group" class="mini-select">
-          ${Object.entries(BRAND_GROUPS).map(([k, g]) =>
-            `<option value="${k}"${k === groupKey ? ' selected' : ''}>${escapeHtml(g.label)}</option>`).join('')}
-        </select>
+        <div class="target-head-actions">
+          <select id="sales-group" class="mini-select">
+            ${Object.entries(BRAND_GROUPS).map(([k, g]) =>
+              `<option value="${k}"${k === groupKey ? ' selected' : ''}>${escapeHtml(g.label)}</option>`).join('')}
+          </select>
+          <button id="targets-edit" class="btn btn-outline btn-sm"><i data-lucide="pencil"></i> แก้เป้า</button>
+        </div>
       </div>
       <div class="target-summary">
         <div class="target-big">
-          <span class="kpi-label">รวมกลุ่มนี้</span>
-          <span class="kpi-value mono">${baht(actual)}</span>
-          <span class="kpi-sub">เป้า ${baht(target)}${shortfall > 0 ? ` · ขาดอีก ${shortBaht(shortfall)}` : ' · บรรลุแล้ว'}</span>
+          <span class="kpi-label">${shortfall > 0 ? 'เหลืออีกถึงปิดเป้ากลุ่มนี้' : 'ปิดเป้ากลุ่มนี้แล้ว'}</span>
+          <span class="kpi-value mono">${shortfall > 0 ? baht(shortfall) : baht(actual)}</span>
+          <span class="kpi-sub">ทำได้ ${baht(actual)} จากเป้า ${baht(target)}</span>
         </div>
         <div class="target-ring" style="--pct:${pct}">
           <span class="mono">${pct.toFixed(0)}%</span>
@@ -162,7 +203,7 @@ function renderTargets(month, groupKey) {
 }
 
 /** Render the whole dashboard into `container`. */
-export function renderSalesDashboard(container, { months, monthIndex, mode, groupKey, updatedAt }) {
+export function renderSalesDashboard(container, { months, monthIndex, mode, groupKey, updatedAt, targets, editingTargets }) {
   const month = months[monthIndex];
   const prevMonth = monthIndex > 0 ? months[monthIndex - 1] : null;
 
@@ -179,8 +220,8 @@ export function renderSalesDashboard(container, { months, monthIndex, mode, grou
       <button id="sales-refresh" class="btn btn-outline btn-sm"><i data-lucide="refresh-cw"></i> รีเฟรช</button>
       <span class="sales-stamp">อัปเดต ${escapeHtml(updatedAt)}</span>
     </div>
-    ${renderKpis(month, prevMonth, mode)}
+    ${renderKpis(month, prevMonth, mode, targets)}
     ${renderBrandBars(month, prevMonth, mode)}
-    ${renderTargets(month, groupKey)}
-    <p class="sales-note"><i data-lucide="lock"></i> อ่านอย่างเดียว — แดชบอร์ดนี้ไม่เขียนอะไรกลับไปที่ชีต</p>`;
+    ${renderTargets(month, groupKey, targets, editingTargets)}
+    <p class="sales-note"><i data-lucide="lock"></i> ยอดขายอ่านอย่างเดียว — แดชบอร์ดนี้ไม่เขียนอะไรกลับไปที่ชีต (เป้าเก็บแยกในระบบ)</p>`;
 }

@@ -13,8 +13,9 @@ import {
   addDeposit,
 } from './firebase.js';
 import { persistTheme, resetOnSignOut, state } from './state.js';
-import { fetchSales } from './sales.js';
+import { fetchSales, fetchTargets, saveTargets, DEFAULT_TARGETS, BRANDS } from './sales.js';
 import { renderSalesDashboard } from './sales-view.js';
+import { renderInstallment, quote, TERMS } from './installment.js';
 import {
   bangkokTimestamp,
   csvCell,
@@ -41,6 +42,8 @@ const el = {
   navDeleted: document.getElementById('nav-deleted'),
   navSummary: document.getElementById('nav-summary'),
   navSales: document.getElementById('nav-sales'),
+  navInstallment: document.getElementById('nav-installment'),
+  installmentContainer: document.getElementById('installment-container'),
   countPending: document.getElementById('count-pending'),
   countReceived: document.getElementById('count-received'),
   countDeleted: document.getElementById('count-deleted'),
@@ -557,7 +560,10 @@ function renderSummary() {
 
 // Fetched once per session and reused when switching back; "รีเฟรช" forces a
 // re-read. The sheet is a hand-maintained document, not a live feed.
-const sales = { months: null, index: 0, mode: 'amount', group: 'all', updatedAt: '', loading: false };
+const sales = {
+  months: null, index: 0, mode: 'amount', group: 'all', updatedAt: '', loading: false,
+  targets: { ...DEFAULT_TARGETS }, editingTargets: false,
+};
 
 async function showSales({ force = false } = {}) {
   el.salesContainer.classList.remove('hidden');
@@ -570,7 +576,14 @@ async function showSales({ force = false } = {}) {
     refreshIcons();
 
     try {
-      sales.months = await fetchSales();
+      // Targets are a small read and shouldn't block the sheet; if they fail we
+      // fall back to the defaults rather than showing no dashboard at all.
+      const [months, targets] = await Promise.all([
+        fetchSales(),
+        getIdToken().then((t) => (t ? fetchTargets(t) : null)).catch(() => null),
+      ]);
+      sales.months = months;
+      if (targets) sales.targets = targets;
       sales.index = sales.months.length - 1; // เปิดมาที่เดือนล่าสุดที่มีข้อมูล
       sales.updatedAt = bangkokTimestamp();
     } catch (error) {
@@ -594,14 +607,63 @@ async function showSales({ force = false } = {}) {
     mode: sales.mode,
     groupKey: sales.group,
     updatedAt: sales.updatedAt,
+    targets: sales.targets,
+    editingTargets: sales.editingTargets,
   });
   refreshIcons();
+}
+
+/** Read the target editor's inputs back out. */
+function readTargetInputs() {
+  const values = {};
+  for (const { key } of BRANDS) {
+    const input = document.getElementById(`target-${key}`);
+    values[key] = Math.max(0, Math.round(Number(input?.value) || 0));
+  }
+  return values;
+}
+
+async function commitTargets() {
+  const values = readTargetInputs();
+  const msg = document.getElementById('targets-msg');
+  const button = document.getElementById('targets-save');
+  button.disabled = true;
+  button.querySelector('span')?.remove();
+
+  try {
+    const idToken = await getIdToken();
+    if (!idToken) throw new Error('เซสชันหมดอายุ กรุณาเข้าระบบใหม่');
+    sales.targets = await saveTargets(idToken, values);
+    sales.editingTargets = false;
+    showSales();
+    toast('บันทึกเป้ายอดขายเรียบร้อย', 'success');
+  } catch (error) {
+    button.disabled = false;
+    if (msg) {
+      msg.textContent = error.message || 'บันทึกไม่สำเร็จ';
+      msg.classList.remove('hidden');
+    }
+  }
 }
 
 /* Delegated so the controls survive every dashboard re-render. */
 el.salesContainer.addEventListener('click', (event) => {
   if (event.target.closest('#sales-retry') || event.target.closest('#sales-refresh')) {
     showSales({ force: true });
+    return;
+  }
+  if (event.target.closest('#targets-edit')) {
+    sales.editingTargets = true;
+    showSales();
+    return;
+  }
+  if (event.target.closest('#targets-cancel')) {
+    sales.editingTargets = false;
+    showSales();
+    return;
+  }
+  if (event.target.closest('#targets-save')) {
+    commitTargets();
     return;
   }
   const modeBtn = event.target.closest('.mode-btn[data-mode]');
@@ -621,10 +683,63 @@ el.salesContainer.addEventListener('change', (event) => {
   }
 });
 
+/* Live total while editing targets, so the effect of a change is visible. */
+el.salesContainer.addEventListener('input', (event) => {
+  if (!event.target.matches('[data-brand]')) return;
+  const total = Object.values(readTargetInputs()).reduce((a, b) => a + b, 0);
+  const out = document.getElementById('target-edit-total');
+  if (out) out.textContent = '฿' + total.toLocaleString('th-TH');
+});
+
+/* ------------------------------------------------- installment calculator - */
+
+const installment = { price: null, downPercent: 10 };
+
+function showInstallment() {
+  el.installmentContainer.classList.remove('hidden');
+  renderInstallment(el.installmentContainer, installment);
+  refreshIcons();
+}
+
+el.installmentContainer.addEventListener('input', (event) => {
+  if (event.target.id !== 'inst-price') return;
+  const raw = Number(event.target.value);
+  installment.price = Number.isFinite(raw) && raw > 0 ? raw : null;
+
+  // Re-render only the numbers, so typing doesn't steal focus from the field.
+  const rows = installment.price
+    ? TERMS.map((m) => quote(installment.price, installment.downPercent, m))
+    : [];
+  const cells = el.installmentContainer.querySelectorAll('.inst-monthly');
+  if (cells.length === rows.length && rows.length > 0) {
+    rows.forEach((r, i) => { cells[i].textContent = '฿' + Math.round(r.monthly).toLocaleString('th-TH'); });
+    const downOut = el.installmentContainer.querySelector('.inst-down-out .kpi-value');
+    if (downOut) downOut.textContent = '฿' + rows[0].down.toLocaleString('th-TH');
+  } else {
+    showInstallment();
+  }
+});
+
+el.installmentContainer.addEventListener('change', (event) => {
+  if (event.target.id !== 'inst-down') return;
+  installment.downPercent = Number(event.target.value);
+  showInstallment();
+});
+
 function renderList() {
   renderCounts();
   renderMetrics();
   syncNavButtons();
+
+  if (listMode === 'installment') {
+    el.groupedDatesContainer.classList.add('hidden');
+    el.summaryContainer.classList.add('hidden');
+    el.salesContainer.classList.add('hidden');
+    el.tableEmptyState.classList.add('hidden');
+    showInstallment();
+    return;
+  }
+  el.installmentContainer.classList.add('hidden');
 
   if (listMode === 'sales') {
     el.groupedDatesContainer.classList.add('hidden');
@@ -726,9 +841,10 @@ function syncNavButtons() {
   el.navDeleted.classList.toggle('is-active', listMode === 'deleted');
   el.navSummary.classList.toggle('is-active', listMode === 'summary');
   el.navSales.classList.toggle('is-active', listMode === 'sales');
+  el.navInstallment.classList.toggle('is-active', listMode === 'installment');
 
   // The deposit search box and KPI tiles belong to the deposit views only.
-  const onSales = listMode === 'sales';
+  const onSales = listMode === 'sales' || listMode === 'installment';
   el.depositKpis.classList.toggle('hidden', onSales);
   el.contentTop.classList.toggle('sales-mode', onSales);
   // Searching a month-by-month roll-up doesn't mean anything.
@@ -747,6 +863,7 @@ el.navReceived.addEventListener('click', () => setListMode('received'));
 el.navDeleted.addEventListener('click', () => setListMode('deleted'));
 el.navSummary.addEventListener('click', () => setListMode('summary'));
 el.navSales.addEventListener('click', () => setListMode('sales'));
+el.navInstallment.addEventListener('click', () => setListMode('installment'));
 el.sidebarToggle.addEventListener('click', () => el.sidebar.classList.toggle('open'));
 
 /* --------------------------------------------------- add-deposit drawer --- */

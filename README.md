@@ -62,8 +62,9 @@ src/
   config.js                 อ่านค่า config จาก env (ไม่มี localStorage override แล้ว)
   state.js                  state ของแอป (deposits อยู่ใน memory เท่านั้น)
   firebase.js               Firestore: init / add / soft-delete / mark received / subscribe
-  sales.js                  ดึง+แปลงชีตยอดขาย (อ่านอย่างเดียว ตรงจากเบราว์เซอร์)
+  sales.js                  ดึง+แปลงชีตยอดขาย + อ่าน/บันทึกเป้าผ่าน API
   sales-view.js             แสดงผลแดชบอร์ดยอดขาย (กราฟแท่งเป็น CSS ล้วน)
+  installment.js            คำนวณค่างวดผ่อน (ดอกเบี้ยคงที่)
   utils.js                  ฟอร์แมต, parse CSV, escape HTML, timestamp มาตรฐาน
   icons.js                  รายชื่อไอคอน Lucide ที่ใช้จริง
   style.css                 สไตล์ทั้งหมด (ธีมทอง-ดำ + โหมดการ์ดบนมือถือ)
@@ -77,6 +78,10 @@ functions/                  Cloudflare Pages Functions (deploy พร้อม�
   api/sheet-webhook.js        รับ POST จาก Apps Script → เขียน Firestore
   api/sync-now.js             เว็บสั่ง sync ทันที (ไม่ต้องรอ cron)
   api/update-deposit.js       แก้ไขรายการจากเว็บ (ดู "ทำไมการแก้ไขต้องผ่านเซิร์ฟเวอร์")
+  api/pin-login.js            ตรวจรหัส 5 หลัก → คืน Firebase custom token
+  api/pins.js                 เพิ่ม/เปลี่ยนรหัส (ต้องล็อกอินอยู่ก่อน)
+  api/sales-targets.js        อ่าน/บันทึกเป้ายอดขาย (ใช้ร่วมทั้งร้าน)
+  _lib/firestore-doc.js        อ่าน/เขียนเอกสาร settings/* ด้วย service account
   _lib/google-auth.js          แลก service-account key เป็น access token
   _lib/firestore-write.js      upsert / update เอกสาร Firestore ผ่าน REST API
   _lib/verify-firebase-token.js  ตรวจ ID token ของผู้ใช้ก่อนยอมให้เขียน
@@ -302,6 +307,26 @@ redirect** (คือ `docs.google.com` ที่อนุญาตอยู่�
 `src/utils.js` กับ `formatThai()` ใน `appsscript/onEditSync.gs` ต้องสร้างสตริง
 เดียวกันเป๊ะ ถ้าแก้ที่หนึ่งต้องแก้อีกที่ด้วย (อย่าใช้ `toLocaleString` — ผลลัพธ์
 ต่างกันตามเบราว์เซอร์)
+
+---
+
+## การเข้าใช้งาน — รหัส 5 หลัก
+
+หน้าจอเป็นแป้นตัวเลขเหมือนปลดล็อกมือถือ แต่ **รหัสไม่เคยอยู่ในโค้ดฝั่งเบราว์เซอร์**
+`/api/pin-login` เทียบรหัสกับ `settings/pins` ใน Firestore แล้วคืน **Firebase custom
+token** ให้เบราว์เซอร์แลกเป็น session จริง — `firestore.rules` จึงยังเห็น
+`request.auth` เป็นผู้ใช้จริงเหมือนตอนใช้รหัสผ่าน
+
+⚠️ **repo นี้เป็น public — ห้ามใส่รหัสลงในโค้ดเด็ดขาด** รหัสตั้งต้นมาจาก secret
+`STAFF_PINS` (คั่นด้วยจุลภาค) ซึ่งถูก seed ลง Firestore ครั้งแรกที่มีคนล็อกอิน
+หลังจากนั้นเปลี่ยน/เพิ่มได้ผ่าน `/api/pins` โดยไม่ต้อง deploy ใหม่
+
+```bash
+npx wrangler pages secret put STAFF_PINS --project-name=deposit-tracker-app
+```
+
+รหัส 5 หลักมีแค่ 100,000 ความเป็นไปได้ จึงจำกัดการเดา: ผิด 8 ครั้งล็อก 15 นาที
+นับแยกตาม IP ที่เก็บเป็นค่าแฮช
 
 ---
 

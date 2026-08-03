@@ -321,7 +321,40 @@ input:disabled { background: var(--surface-2); color: var(--text-muted); cursor:
 .target-pct { text-align: right; font-weight: 600 }
 .target-num { text-align: right; color: var(--text-secondary); font-size: .68rem }
 
+/* --- target editor ----------------------------------------------------- */
+.target-head-actions { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap }
+.target-edit { padding: .9rem 1rem }
+.target-edit-row {
+  display: grid; grid-template-columns: 90px 1fr;
+  align-items: center; gap: 10px; margin-bottom: .5rem;
+}
+.target-edit-row label { font-size: .8rem; font-weight: 500 }
+.target-edit-total {
+  display: flex; justify-content: space-between; align-items: center;
+  padding: .6rem 0 .2rem; margin-top: .5rem;
+  border-top: 1px solid var(--border);
+  font-size: .8rem; color: var(--text-secondary);
+}
+.target-edit-total strong { font-size: 1rem; color: var(--gold-deep) }
+.target-edit-actions { display: flex; justify-content: flex-end; gap: .5rem; margin-top: .7rem }
+
+/* --- installment calculator -------------------------------------------- */
+.inst-controls {
+  display: flex; align-items: flex-end; gap: .9rem; flex-wrap: wrap;
+  padding: .9rem 1rem; border-bottom: 1px solid var(--border);
+}
+.inst-field { display: flex; flex-direction: column; gap: .25rem }
+.inst-field label { font-size: .74rem; font-weight: 500; color: var(--text-secondary) }
+.inst-field input { width: 170px }
+.inst-down-out { display: flex; flex-direction: column; margin-left: auto }
+.inst-down-out .kpi-value { font-size: 1.1rem; color: var(--gold-deep) }
+.inst-monthly { color: var(--gold-deep); font-size: .95rem }
+
 @media (max-width: 620px) {
+  .target-edit-row { grid-template-columns: 74px 1fr }
+  .inst-field input { width: 100% }
+  .inst-field { flex: 1 1 100% }
+  .inst-down-out { margin-left: 0 }
   .bar-row { grid-template-columns: 54px 1fr 62px; }
   .bar-diff { display: none }
   .target-row { grid-template-columns: 54px 1fr 38px; }

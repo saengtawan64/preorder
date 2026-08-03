@@ -168,11 +168,36 @@ export async function fetchSales() {
   return months;
 }
 
-/** Default monthly targets per brand, in baht. */
+/** Fallback monthly targets per brand, in baht — used until someone saves theirs. */
 export const DEFAULT_TARGETS = {
   OPPO: 300000, VIVO: 250000, SS: 150000, REALME: 50000,
   TECNO: 30000, Honor: 30000, XIAOMI: 100000, IPHONE: 600000,
 };
+
+/**
+ * Targets are shared by the whole shop, so they live in Firestore behind
+ * /api/sales-targets rather than in each browser — a target set on the office
+ * PC has to be the one the counter tablet sees.
+ */
+export async function fetchTargets(idToken) {
+  const response = await fetch('/api/sales-targets', {
+    headers: { Authorization: `Bearer ${idToken}` },
+  });
+  if (!response.ok) throw new Error(`โหลดเป้าไม่สำเร็จ (HTTP ${response.status})`);
+  const body = await response.json();
+  return body.targets || { ...DEFAULT_TARGETS };
+}
+
+/** Save the shop's targets. Resolves to the stored values. */
+export async function saveTargets(idToken, targets) {
+  const response = await fetch('/api/sales-targets', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${idToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ targets }),
+  });
+  if (!response.ok) throw new Error((await response.text()) || 'บันทึกเป้าไม่สำเร็จ');
+  return (await response.json()).targets;
+}
 
 /** Brand groups the target card can be scoped to. */
 export const BRAND_GROUPS = {
