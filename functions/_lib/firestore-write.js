@@ -38,6 +38,56 @@ async function getDeposit(projectId, token, depositId) {
 }
 
 /**
+ * Update the editable fields of an existing deposit, on behalf of a signed-in
+ * staff user editing a row in the web app.
+ *
+ * This runs server-side rather than letting the browser write Firestore
+ * directly: firestore.rules deliberately refuses to let a client rewrite a
+ * record's business fields, so the browser can still only ever soft-delete or
+ * flip status. Editing goes through here, where the caller's Firebase ID token
+ * has already been verified, and only the fields below can move — `depositId`,
+ * `createdAtIso` and `createdAt` are never touched, so a record's identity and
+ * creation time stay fixed.
+ *
+ * Returns { updated: false } when the deposit doesn't exist.
+ */
+export async function updateDepositFromWeb(projectId, token, payload) {
+  const path = `projects/${projectId}/databases/(default)/documents/deposits/${encodeURIComponent(payload.depositId)}`;
+  const existing = await getDeposit(projectId, token, payload.depositId);
+  if (!existing) return { updated: false };
+
+  const fields = {
+    firstName: payload.firstName,
+    nickname: payload.nickname,
+    phoneNumber: payload.phoneNumber,
+    depositItem: payload.depositItem,
+    depositAmount: payload.depositAmount,
+    updatedAtIso: new Date().toISOString(),
+    source: 'web',
+  };
+
+  const firestoreFields = {};
+  for (const [key, value] of Object.entries(fields)) {
+    firestoreFields[key] = toFirestoreValue(value);
+  }
+
+  const query = Object.keys(fields)
+    .map((f) => `updateMask.fieldPaths=${encodeURIComponent(f)}`)
+    .join('&');
+
+  const response = await firestoreFetch(`${path}?${query}`, token, {
+    method: 'PATCH',
+    body: JSON.stringify({ fields: firestoreFields }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Firestore update failed: ${response.status} ${await response.text()}`);
+  }
+
+  return { updated: true };
+}
+
+/**
  * Upsert a deposit coming from a Sheet edit.
  *
  * Business fields (name, phone, item, amount, timestamp, deleted) always

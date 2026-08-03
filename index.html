@@ -63,6 +63,9 @@
           <button class="nav-item" id="nav-deleted" data-mode="deleted">
             <i data-lucide="trash-2"></i><span>ลบแล้ว</span><em class="nav-count" id="count-deleted">0</em>
           </button>
+          <button class="nav-item" id="nav-summary" data-mode="summary">
+            <i data-lucide="coins"></i><span>สรุปยอด</span>
+          </button>
         </nav>
 
         <div class="side-foot">
@@ -105,6 +108,7 @@
         </div>
 
         <div id="grouped-dates-container"></div>
+        <div id="summary-container" class="hidden"></div>
 
         <div id="table-empty-state" class="empty-state hidden">
           <i data-lucide="inbox"></i>
@@ -117,7 +121,7 @@
     <div id="add-overlay" class="drawer-overlay hidden"></div>
     <aside id="add-panel" class="drawer" aria-hidden="true">
       <div class="drawer-header">
-        <h3><i data-lucide="plus-circle"></i> เพิ่มรายการมัดจำ</h3>
+        <h3><i data-lucide="plus-circle" id="drawer-icon"></i> <span id="drawer-title">เพิ่มรายการมัดจำ</span></h3>
         <button id="add-close-btn" class="btn-icon" title="ปิด"><i data-lucide="x"></i></button>
       </div>
 

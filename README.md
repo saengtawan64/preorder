@@ -61,28 +61,35 @@ src/
   auth.js                   ล็อกอิน/ล็อกเอาท์บัญชีเดียวผ่าน Firebase Auth
   config.js                 อ่านค่า config จาก env (ไม่มี localStorage override แล้ว)
   state.js                  state ของแอป (deposits อยู่ใน memory เท่านั้น)
-  firebase.js               Firestore: init / add / soft-delete / subscribe
-  utils.js                  ฟอร์แมต, parse CSV, escape HTML
+  firebase.js               Firestore: init / add / soft-delete / mark received / subscribe
+  utils.js                  ฟอร์แมต, parse CSV, escape HTML, timestamp มาตรฐาน
   icons.js                  รายชื่อไอคอน Lucide ที่ใช้จริง
-  style.css                 สไตล์ทั้งหมด
+  style.css                 สไตล์ทั้งหมด (ธีมทอง-ดำ + โหมดการ์ดบนมือถือ)
 public/
   _headers                  security headers ของ Cloudflare Pages (รวม CSP)
-  favicon.svg
+  logo.svg                  โลโก้ BSD (ไซด์บาร์ + หน้าล็อกอิน)
+  favicon.svg               โลโก้บนกระเบื้องดำ (แท็บเบราว์เซอร์)
 firestore.rules             ทุก read/write ต้อง request.auth != null
 
 functions/                  Cloudflare Pages Functions (deploy พร้อมเว็บหลัก)
   api/sheet-webhook.js        รับ POST จาก Apps Script → เขียน Firestore
+  api/sync-now.js             เว็บสั่ง sync ทันที (ไม่ต้องรอ cron)
+  api/update-deposit.js       แก้ไขรายการจากเว็บ (ดู "ทำไมการแก้ไขต้องผ่านเซิร์ฟเวอร์")
   _lib/google-auth.js          แลก service-account key เป็น access token
-  _lib/firestore-write.js      upsert เอกสาร Firestore ผ่าน REST API
+  _lib/firestore-write.js      upsert / update เอกสาร Firestore ผ่าน REST API
+  _lib/verify-firebase-token.js  ตรวจ ID token ของผู้ใช้ก่อนยอมให้เขียน
 
 sync-worker/                Cloudflare Worker แยกต่างหาก, ต้อง deploy เอง
   wrangler.toml               ตั้ง cron ทุก 5 นาที
   src/index.js                entrypoint (scheduled + manual-trigger fetch)
   src/google-auth.js          เหมือน functions/_lib (คนละ deploy target เลย copy แยก)
   src/firestore.js             อ่านรายการ deposits ทั้งหมด (REST API)
-  src/sheets.js                เทียบ/อัปเดต/เพิ่มแถวในชีต (Sheets API)
+  src/sheets.js                เขียนแถวลงชีตแท็บเดียว (ระบุตำแหน่งแถว ไม่ใช้ append)
 
 appsscript/onEditSync.gs    วางใน Apps Script ของชีต (ดูขั้นตอนด้านล่าง)
+
+cleanup-test-data.mjs       ล้างข้อมูลทดสอบ (gitignored — มีพาธไปไฟล์กุญแจ)
+backup.mjs / backup.bat     สำรองระบบเป็น zip (gitignored ด้วยเหตุผลเดียวกัน)
 ```
 
 แอปหลักเป็น vanilla JS ไม่มี framework — DOM ทั้งหมดอยู่ใน `index.html`
@@ -100,7 +107,8 @@ Function อ้างอิงเอกสารเดียวกันด้�
 |---|---|
 | `depositId` | UUID สร้างตอนบันทึก — เป็น document id ด้วย |
 | `firstName`, `nickname`, `phoneNumber`, `depositItem`, `depositAmount` | ข้อมูลธุรกิจ |
-| `timestamp` | สตริงแสดงผลภาษาไทย (พ.ศ.) — ใช้แสดงผลเท่านั้น |
+| `timestamp` | สตริงแสดงผลภาษาไทย (พ.ศ.) เช่น `2/8/2569 11:07` — ใช้แสดงผลเท่านั้น |
+| `status` | `'pending'` (รอลูกค้ามารับ) หรือ `'received'` (รับของแล้ว) |
 | `createdAtIso` / `createdAt` | เวลาสร้างจริง (ISO / Firestore Timestamp) — **ไม่เปลี่ยนหลังสร้าง** |
 | `updatedAtIso` | แก้ทุกครั้งที่มีการเปลี่ยนแปลง (รวมถึงตอน soft-delete) |
 | `source` | `'web'` หรือ `'sheet'` — ระบบล่าสุดที่เขียนทับ |
@@ -146,7 +154,11 @@ firebase deploy --only firestore:rules
 
 1. สร้าง Google Sheet ใหม่ ชื่อแท็บ **`Deposits`**
 2. แถวหัวตาราง (row 1) 9 คอลัมน์:
-   `depositId, วันที่และเวลา, ชื่อจริง, ชื่อเล่น, เบอร์โทร, สินค้าที่มัดจำ, ยอดมัดจำ (บาท), สถานะ, อัปเดตล่าสุด`
+   `วันที่และเวลา, ชื่อจริง, ชื่อเล่น, เบอร์โทร, สินค้าที่มัดจำ, ยอดมัดจำ (บาท), สถานะ, depositId, อัปเดตล่าสุด`
+
+   แท็บเดียวเก็บทุกสถานะ — ไม่มีแท็บ archive และไม่มีการย้าย/ลบแถว
+   คอลัมน์ H (`depositId`) กับ I (`อัปเดตล่าสุด`) ถูกซ่อนไว้ ระบบจัดการเอง
+   สร้างรูปแบบทั้งหมดได้ด้วยการรัน `setupSheet()` ใน Apps Script หนึ่งครั้ง
 3. **File → Share** → แชร์ให้อีเมล service account (ขั้น 3) เป็น **Editor**
 4. **ห้าม Publish to web เด็ดขาด** — นี่คือสิ่งที่ทำให้ข้อมูลรั่วในเวอร์ชันก่อนหน้า
 
@@ -224,6 +236,46 @@ npx wrangler deploy
 **ยังไม่ได้ทำ ถ้าจะขยายต่อ:** ทุกคนใช้บัญชีเดียว จึงไม่รู้ว่าใครทำอะไร
 (ไม่มี audit trail รายบุคคล) — ถ้าพนักงานเริ่มเข้าออกบ่อยหรือมีหลายสาขา
 ควรแยกเป็นบัญชีต่อคน โครงจาก Firebase Auth ที่มีอยู่รองรับได้โดยไม่ต้องรื้อ
+
+---
+
+## กฎเหล็ก — เคยพังมาแล้วทุกข้อ
+
+**1. ห้ามใช้ `values.append` ของ Sheets API** — ให้เขียนระบุตำแหน่งแถว `A{n}:I{n}` เท่านั้น
+append ทำพังพร้อมกัน 3 อย่าง: ก๊อปรูปแบบหัวตาราง (สีเข้ม) ลงแถวใหม่, ดันช่วง banding
+กับกฎ conditional format ให้เลื่อน, และไป **ยึดคอลัมน์แรกที่ "มองเห็น"** — พอซ่อน
+คอลัมน์ A ทุกแถวใหม่จึงเลื่อนไปขวาหนึ่งช่อง คอลัมน์ id ว่างตลอด ระบบจับคู่แถวเดิม
+ไม่ได้ แล้วเพิ่มแถวซ้ำทุก ๆ 5 นาทีไม่รู้จบ
+
+**2. ห้ามซ่อนคอลัมน์ A** — ซ่อนได้เฉพาะ H (`depositId`) และ I (`อัปเดตล่าสุด`)
+ซึ่งอยู่ท้ายสุดจึงไม่กระทบตำแหน่งเขียน
+
+**3. ห้าม `setValue()` สตริงที่หน้าตาเหมือนวันที่ โดยไม่ `setNumberFormat('@')` ก่อน**
+Sheets จะ parse เป็นค่าวันที่จริง แล้วรอบหน้าที่สคริปต์อ่านกลับมาจะได้ `Date`
+ซึ่ง `String(date)` ออกมาเป็น `"Wed Aug 02 2569 11:07:00 GMT+0700 (Indochina Time)"`
+แล้วไหลเข้า Firestore ต่อ (แถวที่มาจากเว็บไม่โดน เพราะ Worker เขียนแบบ `RAW`)
+
+**4. ตอนล้างข้อมูล: ลบ Firestore ก่อน แล้วค่อยเคลียร์ชีต**
+ไม่งั้น worker จะ sync ข้อมูลกลับเข้าชีตภายใน 5 นาที — `cleanup-test-data.mjs`
+ทำลำดับนี้ให้แล้ว
+
+**รูปแบบเวลาต้องตรงกันทั้งระบบ** (`2/8/2569 11:07`) — `bangkokTimestamp()` ใน
+`src/utils.js` กับ `formatThai()` ใน `appsscript/onEditSync.gs` ต้องสร้างสตริง
+เดียวกันเป๊ะ ถ้าแก้ที่หนึ่งต้องแก้อีกที่ด้วย (อย่าใช้ `toLocaleString` — ผลลัพธ์
+ต่างกันตามเบราว์เซอร์)
+
+---
+
+## ทำไมการแก้ไขต้องผ่านเซิร์ฟเวอร์
+
+`firestore.rules` ตั้งใจ**ไม่ยอมให้เบราว์เซอร์แก้ฟิลด์ข้อมูลธุรกิจ** — จากเว็บทำได้
+แค่ soft-delete กับเปลี่ยนสถานะ เพื่อไม่ให้ session ที่หลุดไปเขียนทับประวัติได้
+
+การกดแก้ไขในเว็บจึงยิงไปที่ `functions/api/update-deposit.js` ซึ่งตรวจ Firebase ID
+token ของผู้ใช้ก่อน แล้วค่อยเขียนด้วย service account (ซึ่งข้าม rules ได้) โดยแตะ
+เฉพาะฟิลด์ที่แก้ได้ — `depositId`, `createdAtIso`, `createdAt` ไม่เคยถูกแตะ
+
+ผลพลอยได้: ไม่ต้องติดตั้ง/ล็อกอิน firebase CLI เพื่อ deploy rules ใหม่
 
 ---
 

@@ -18,3 +18,7 @@ set-gcp-key.bat
 
 # One-off local maintenance script (also holds an absolute path to the key file)
 cleanup-test-data.mjs
+
+# Local backup helper (holds an absolute path to the secret key file)
+backup.mjs
+backup.bat

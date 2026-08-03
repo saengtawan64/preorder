@@ -238,6 +238,9 @@ tr.row-deleted td.no-strike { text-decoration: none }
 .chip-deleted { background: var(--rose-soft); color: var(--rose-deep) }
 
 .action-btns { display: flex; justify-content: flex-end; gap: .25rem }
+.summary-total td { background: var(--surface-2); border-top: 2px solid var(--border-strong) }
+.summary-total .amount-cell { color: var(--gold-deep) }
+input:disabled { background: var(--surface-2); color: var(--text-muted); cursor: not-allowed }
 .empty-state { text-align: center; padding: 3rem 1rem; color: var(--text-muted) }
 .empty-state i { font-size: 2.2rem; margin-bottom: .4rem; display: inline-block }
 
@@ -358,4 +361,51 @@ input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px va
   .side-toggle { display: flex }
   .content { padding: 12px 14px 28px }
   #add-open-btn span { display: none }
+}
+
+/* Narrow screens: the table becomes a stack of cards. A 7-column table can
+   only scroll sideways on a phone, which hides the amount and the buttons —
+   the two things staff reach for. Each cell names itself from its data-label
+   instead, so a row reads top to bottom. */
+@media (max-width: 620px) {
+  .data-table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap }
+  .data-table, .data-table tbody, .data-table tfoot, .data-table tr, .data-table td { display: block; width: 100% }
+  .table-responsive { overflow-x: visible }
+
+  .data-table tbody tr, .data-table tfoot tr {
+    border-bottom: 1px solid var(--border);
+    padding: .35rem 0;
+  }
+  .data-table tbody tr:last-child { border-bottom: none }
+
+  .data-table td {
+    display: flex; align-items: center; justify-content: space-between; gap: 1rem;
+    border-bottom: none;
+    padding: .3rem .9rem;
+    white-space: normal;
+    text-align: right;
+  }
+  .data-table td::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-size: .68rem; letter-spacing: .08em; text-transform: uppercase;
+    color: var(--text-muted); text-align: left;
+  }
+  /* Cells with nothing to label (the spacer in the summary footer) collapse. */
+  .data-table td[data-label=""] { display: none }
+
+  .name-cell { padding-left: 1.4rem !important }
+  .name-cell::before { position: static; width: auto; height: auto; background: none; border-radius: 0; content: attr(data-label) }
+  .data-table tbody tr { position: relative }
+  .data-table tbody tr::before {
+    content: ""; position: absolute; left: 0; top: .5rem; bottom: .5rem;
+    width: 3px; border-radius: 2px; background: var(--amber);
+  }
+  tr.row-received::before { background: var(--mint) }
+  tr.row-deleted::before { background: var(--rose) }
+
+  .amount-cell { text-align: right; font-size: .95rem }
+  .actions-cell { justify-content: flex-end }
+  .actions-cell::before { display: none }
+  .action-btns .btn-xs { padding: .4rem .6rem }
 }

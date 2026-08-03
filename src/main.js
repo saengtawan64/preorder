@@ -39,6 +39,7 @@ const el = {
   navPending: document.getElementById('nav-pending'),
   navReceived: document.getElementById('nav-received'),
   navDeleted: document.getElementById('nav-deleted'),
+  navSummary: document.getElementById('nav-summary'),
   countPending: document.getElementById('count-pending'),
   countReceived: document.getElementById('count-received'),
   countDeleted: document.getElementById('count-deleted'),
@@ -53,6 +54,8 @@ const el = {
   addPanel: document.getElementById('add-panel'),
   addOverlay: document.getElementById('add-overlay'),
   addCloseBtn: document.getElementById('add-close-btn'),
+  drawerTitle: document.getElementById('drawer-title'),
+  drawerIcon: document.getElementById('drawer-icon'),
   contactForm: document.getElementById('contact-form'),
   firstNameInput: document.getElementById('first-name'),
   nicknameInput: document.getElementById('nickname'),
@@ -65,6 +68,7 @@ const el = {
   searchClearBtn: document.getElementById('search-clear-btn'),
   connectionStatus: document.getElementById('connection-status'),
   groupedDatesContainer: document.getElementById('grouped-dates-container'),
+  summaryContainer: document.getElementById('summary-container'),
   tableEmptyState: document.getElementById('table-empty-state'),
 
   metricTotalAmount: document.getElementById('metric-total-amount'),
@@ -326,15 +330,17 @@ function renderDateGroup(date, records) {
   const rows = records
     .map((record) => {
       const bucket = bucketOf(record);
+      // data-label feeds the stacked card layout on narrow screens, where the
+      // table header is hidden and each cell has to name itself.
       return `
       <tr class="row-${bucket}">
-        <td class="name-cell"><strong>${escapeHtml(record.firstName)}</strong></td>
-        <td>${escapeHtml(record.nickname)}</td>
-        <td><span class="phone-tag">${escapeHtml(formatPhone(record.phoneNumber))}</span></td>
-        <td class="product-cell">${escapeHtml(record.depositItem)}</td>
-        <td class="amount-cell mono">${formatBaht(record.depositAmount)}</td>
-        <td class="text-center no-strike">${CHIP[bucket]}</td>
-        <td class="no-strike">
+        <td class="name-cell" data-label="ชื่อจริง"><strong>${escapeHtml(record.firstName)}</strong></td>
+        <td data-label="ชื่อเล่น">${escapeHtml(record.nickname)}</td>
+        <td data-label="เบอร์โทร"><span class="phone-tag">${escapeHtml(formatPhone(record.phoneNumber))}</span></td>
+        <td class="product-cell" data-label="สินค้า">${escapeHtml(record.depositItem)}</td>
+        <td class="amount-cell mono" data-label="ยอดมัดจำ">${formatBaht(record.depositAmount)}</td>
+        <td class="text-center no-strike" data-label="สถานะ">${CHIP[bucket]}</td>
+        <td class="no-strike actions-cell" data-label="จัดการ">
           <div class="action-btns">
             ${
               bucket === 'pending'
@@ -343,6 +349,14 @@ function renderDateGroup(date, records) {
               <i data-lucide="check-check"></i>
             </button>`
                 : ''
+            }
+            ${
+              bucket === 'deleted'
+                ? ''
+                : `<button class="btn btn-xs btn-outline edit-deposit-btn"
+                    data-id="${escapeHtml(record.id)}" title="แก้ไขรายการ">
+              <i data-lucide="pencil"></i>
+            </button>`
             }
             <button class="btn btn-xs btn-outline copy-info-btn"
                     data-info="${escapeHtml(`${record.firstName} - ${record.depositItem} (${formatBaht(record.depositAmount)})`)}"
@@ -393,10 +407,117 @@ function renderDateGroup(date, records) {
   `;
 }
 
+const THAI_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
+
+/** Month bucket for a record, from the same "d/M/yyyy HH:mm" string the sheet shows. */
+function monthOf(record) {
+  const parts = datePart(record.timestamp).split('/');
+  if (parts.length !== 3) return null;
+  const month = Number(parts[1]);
+  const year = Number(parts[2]);
+  if (!month || !year) return null;
+  return { key: year * 100 + month, label: `${THAI_MONTHS[month - 1] || month} ${year}` };
+}
+
+/**
+ * Month-by-month totals. Deleted records are left out entirely — they are
+ * cancelled deposits, so counting them would overstate what the shop holds.
+ */
+function renderSummary() {
+  const months = new Map();
+
+  for (const record of state.deposits) {
+    if (bucketOf(record) === 'deleted') continue;
+    const month = monthOf(record);
+    if (!month) continue;
+
+    if (!months.has(month.key)) {
+      months.set(month.key, { label: month.label, pending: [], received: [] });
+    }
+    months.get(month.key)[bucketOf(record)].push(record);
+  }
+
+  if (months.size === 0) {
+    el.summaryContainer.innerHTML =
+      '<div class="empty-state"><i data-lucide="inbox"></i><p>ยังไม่มีข้อมูลให้สรุป</p></div>';
+    return;
+  }
+
+  const ordered = [...months.entries()].sort(([a], [b]) => b - a);
+  let grandCount = 0;
+  let grandTotal = 0;
+  let grandPending = 0;
+
+  const rows = ordered
+    .map(([, m]) => {
+      const count = m.pending.length + m.received.length;
+      const total = sumAmounts(m.pending) + sumAmounts(m.received);
+      const pendingTotal = sumAmounts(m.pending);
+      grandCount += count;
+      grandTotal += total;
+      grandPending += pendingTotal;
+
+      return `
+      <tr>
+        <td data-label="เดือน"><strong>${escapeHtml(m.label)}</strong></td>
+        <td class="text-center" data-label="จำนวน">${count}</td>
+        <td class="amount-cell mono" data-label="ยอดรวม">${formatBaht(total)}</td>
+        <td class="text-center" data-label="รอรับ">${m.pending.length}</td>
+        <td class="amount-cell mono" data-label="ยอดค้างรับ">${formatBaht(pendingTotal)}</td>
+        <td class="text-center" data-label="รับแล้ว">${m.received.length}</td>
+      </tr>`;
+    })
+    .join('');
+
+  el.summaryContainer.innerHTML = `
+    <div class="date-group-block">
+      <div class="date-group-header">
+        <div class="date-title"><i data-lucide="coins"></i> สรุปยอดมัดจำรายเดือน</div>
+        <div class="date-summary-tag">รวมทั้งหมด ${formatBaht(grandTotal)} · ${grandCount} รายการ</div>
+      </div>
+      <div class="table-responsive">
+        <table class="data-table">
+          <thead>
+            <tr>
+              <th>เดือน</th>
+              <th class="text-center">จำนวน</th>
+              <th style="text-align:right">ยอดรวม</th>
+              <th class="text-center">รอรับ</th>
+              <th style="text-align:right">ยอดค้างรับ</th>
+              <th class="text-center">รับแล้ว</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+          <tfoot>
+            <tr class="summary-total">
+              <td data-label="รวม"><strong>รวมทุกเดือน</strong></td>
+              <td class="text-center" data-label="จำนวน"><strong>${grandCount}</strong></td>
+              <td class="amount-cell mono" data-label="ยอดรวม"><strong>${formatBaht(grandTotal)}</strong></td>
+              <td colspan="2" class="amount-cell mono" data-label="ยอดค้างรับ"><strong>${formatBaht(grandPending)}</strong></td>
+              <td data-label=""></td>
+            </tr>
+          </tfoot>
+        </table>
+      </div>
+    </div>`;
+}
+
 function renderList() {
   renderCounts();
   renderMetrics();
   syncNavButtons();
+
+  if (listMode === 'summary') {
+    el.groupedDatesContainer.classList.add('hidden');
+    el.tableEmptyState.classList.add('hidden');
+    el.summaryContainer.classList.remove('hidden');
+    renderSummary();
+    refreshIcons();
+    return;
+  }
+
+  el.summaryContainer.classList.add('hidden');
+  el.groupedDatesContainer.classList.remove('hidden');
 
   const base = state.deposits.filter((record) => bucketOf(record) === listMode);
   const needle = el.searchInput.value.toLowerCase().trim();
@@ -428,6 +549,14 @@ el.groupedDatesContainer.addEventListener('click', async (event) => {
     } catch {
       toast('คัดลอกไม่สำเร็จ (เบราว์เซอร์ไม่อนุญาต)', 'warning');
     }
+    return;
+  }
+
+  const editBtn = event.target.closest('.edit-deposit-btn');
+  if (editBtn) {
+    const id = editBtn.getAttribute('data-id');
+    const record = state.deposits.find((r) => r.id === id);
+    if (record) openDrawer(record);
     return;
   }
 
@@ -467,6 +596,9 @@ function syncNavButtons() {
   el.navPending.classList.toggle('is-active', listMode === 'pending');
   el.navReceived.classList.toggle('is-active', listMode === 'received');
   el.navDeleted.classList.toggle('is-active', listMode === 'deleted');
+  el.navSummary.classList.toggle('is-active', listMode === 'summary');
+  // Searching a month-by-month roll-up doesn't mean anything.
+  el.searchInput.disabled = listMode === 'summary';
 }
 
 function setListMode(mode) {
@@ -479,18 +611,44 @@ function setListMode(mode) {
 el.navPending.addEventListener('click', () => setListMode('pending'));
 el.navReceived.addEventListener('click', () => setListMode('received'));
 el.navDeleted.addEventListener('click', () => setListMode('deleted'));
+el.navSummary.addEventListener('click', () => setListMode('summary'));
 el.sidebarToggle.addEventListener('click', () => el.sidebar.classList.toggle('open'));
 
 /* --------------------------------------------------- add-deposit drawer --- */
 
-function openAddDrawer() {
+// null = the drawer is adding a new deposit; a document id = editing that one.
+let editingId = null;
+
+function openDrawer(record = null) {
+  editingId = record ? record.id : null;
+
+  if (record) {
+    el.firstNameInput.value = record.firstName || '';
+    el.nicknameInput.value = record.nickname || '';
+    el.phoneNumberInput.value = formatPhone(record.phoneNumber || '');
+    el.depositItemInput.value = record.depositItem || '';
+    el.depositAmountInput.value = record.depositAmount ?? '';
+  } else {
+    el.contactForm.reset();
+  }
+
+  el.drawerTitle.textContent = record ? 'แก้ไขรายการมัดจำ' : 'เพิ่มรายการมัดจำ';
+  el.drawerIcon.setAttribute('data-lucide', record ? 'pencil' : 'plus-circle');
+  el.submitBtn.querySelector('span').innerText = record ? 'บันทึกการแก้ไข' : 'บันทึกรายการมัดจำ';
+  refreshIcons();
+
   el.addPanel.classList.add('open');
   el.addPanel.setAttribute('aria-hidden', 'false');
   el.addOverlay.classList.remove('hidden');
   el.firstNameInput.focus();
 }
 
+function openAddDrawer() {
+  openDrawer(null);
+}
+
 function closeAddDrawer() {
+  editingId = null;
   el.addPanel.classList.remove('open');
   el.addPanel.setAttribute('aria-hidden', 'true');
   el.addOverlay.classList.add('hidden');
@@ -512,6 +670,23 @@ el.phoneNumberInput.addEventListener('input', (event) => {
   event.target.value = formatPhone(event.target.value);
 });
 
+/**
+ * Save an edit through the server rather than writing Firestore from here:
+ * firestore.rules deliberately won't let a client rewrite a record's business
+ * fields (see functions/api/update-deposit.js).
+ */
+async function saveEdit(depositId, fields) {
+  const idToken = await getIdToken();
+  if (!idToken) return false;
+
+  const res = await fetch('/api/update-deposit', {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${idToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ depositId, ...fields }),
+  });
+  return res.ok;
+}
+
 el.contactForm.addEventListener('submit', async (event) => {
   event.preventDefault();
 
@@ -520,37 +695,38 @@ el.contactForm.addEventListener('submit', async (event) => {
     return;
   }
 
-  const record = {
-    depositId: crypto.randomUUID(),
+  const fields = {
     firstName: el.firstNameInput.value.trim().split(/\s+/)[0],
     nickname: el.nicknameInput.value.trim(),
     phoneNumber: formatPhone(el.phoneNumberInput.value.trim()),
     depositItem: el.depositItemInput.value.trim(),
     depositAmount: parseFloat(el.depositAmountInput.value) || 0,
-    timestamp: bangkokTimestamp(),
   };
 
+  const isEdit = editingId !== null;
   const submitLabel = el.submitBtn.querySelector('span');
   const originalLabel = submitLabel.innerText;
   el.submitBtn.disabled = true;
   submitLabel.innerText = 'กำลังบันทึก...';
 
-  const firestoreId = await addDeposit(record);
+  const ok = isEdit
+    ? await saveEdit(editingId, fields)
+    : Boolean(await addDeposit({ depositId: crypto.randomUUID(), ...fields, timestamp: bangkokTimestamp() }));
 
   el.submitBtn.disabled = false;
   submitLabel.innerText = originalLabel;
 
-  if (!firestoreId) {
-    toast('บันทึกข้อมูลไม่สำเร็จ กรุณาลองอีกครั้ง', 'danger');
+  if (!ok) {
+    toast(isEdit ? 'แก้ไขไม่สำเร็จ กรุณาลองอีกครั้ง' : 'บันทึกข้อมูลไม่สำเร็จ กรุณาลองอีกครั้ง', 'danger');
     return;
   }
 
   el.contactForm.reset();
   closeAddDrawer();
-  toast(`บันทึกมัดจำ "${record.firstName}" เรียบร้อย`, 'success');
+  toast(isEdit ? `แก้ไข "${fields.firstName}" เรียบร้อย` : `บันทึกมัดจำ "${fields.firstName}" เรียบร้อย`, 'success');
 
   requestSheetSync();
-  // The real-time listener re-renders too; this makes the row appear instantly.
+  // The real-time listener re-renders too; this makes the change show instantly.
   renderList();
 });
 
