@@ -20,12 +20,13 @@
     <!-- LOGIN GATE — shown until Firebase Auth confirms a session. -->
     <div id="auth-gate" class="auth-gate">
       <div class="auth-gate-card">
-        <div class="auth-gate-mark">
-          <img src="/logo.svg" alt="Banana Secure Deposit" class="auth-gate-logo" width="84" height="84" />
+        <div class="gate-top">
+          <img src="/logo.svg" alt="Banana Secure Deposit" class="auth-gate-logo" width="40" height="40" />
+          <span class="gate-code">B S D · STAFF</span>
         </div>
-        <h1>BANANA <span>SECURE DEPOSIT</span></h1>
-        <p class="auth-gate-sub"><i></i>Secure · Trusted · Organized<i></i></p>
-        <p class="auth-gate-hint">ใส่รหัส 5 หลักเพื่อปลดล็อก</p>
+        <hr class="gate-rule" />
+        <h1>Banana <em>Secure</em><br />Deposit</h1>
+        <p class="auth-gate-sub">ระบบภายในร้าน — เฉพาะพนักงาน</p>
 
         <div class="pin-dots" id="pin-dots" role="status" aria-label="รหัสผ่าน 5 หลัก">
           <span></span><span></span><span></span><span></span><span></span>
@@ -47,7 +48,10 @@
           <button type="button" data-key="del" class="pin-del" aria-label="ลบ"><i data-lucide="delete"></i></button>
         </div>
 
-        <p class="auth-gate-foot"><i data-lucide="shield-check"></i>ระบบภายในร้าน · เฉพาะพนักงาน</p>
+        <div class="gate-foot">
+          <span>ใส่รหัส 5 หลักเพื่อปลดล็อก</span>
+          <span><i data-lucide="shield-check"></i>ปลอดภัย</span>
+        </div>
       </div>
     </div>
 

@@ -445,93 +445,67 @@ input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px va
 .toast-warning { border-left-color: var(--amber) }
 
 /* ========================================================== auth gate === */
-/* The gate stays dark in BOTH themes, like the sidebar — it is the "vault
-   door" of the app, so it reads as chrome rather than as a page. Everything
-   here is scoped to .auth-gate and uses literal colours instead of the theme
-   tokens, because those flip with day/night and this surface must not. */
+/* Style C — "editorial". The gate is deliberately the odd one out in this app:
+   cream paper, a serif masthead, hairline rules and square keys. It reads as
+   the printed cover of a ledger, and the dashboard behind it as the ledger.
+
+   Like the sidebar it is FIXED in both themes — the colours below are literal,
+   not tokens, so day/night cannot flip it. */
 .auth-gate {
   min-height: 100vh; min-height: 100dvh;
-  display: flex; align-items: center; justify-content: center;
-  padding: 1.5rem; position: relative;
-  /* x-hidden keeps the glows from widening the page; y-auto rescues short
-     screens (landscape phones), where the card is taller than the viewport. */
+  display: flex; padding: 1.5rem;
+  /* y-auto rescues short screens (landscape phone), where the column is taller
+     than the viewport; x-hidden keeps the paper grain from widening the page. */
   overflow-x: hidden; overflow-y: auto;
-  background: #0b0b0d;
+  background: #f5f1e6;
+  color: #1b1a16;
 }
-/* `margin:auto` rather than `align-items:center` — centring a flex item that
-   overflows would push its top out of reach of the scrollbar. */
-.auth-gate > .auth-gate-card { margin: auto }
-/* Two warm pools of light behind the card — the only thing separating this
-   from a flat black screen. Purely decorative, so they are pointer-inert. */
-.auth-gate::before, .auth-gate::after {
-  content: ''; position: absolute; border-radius: 50%; pointer-events: none;
-  filter: blur(70px);
-}
+/* Faint horizontal fibre, the only texture on the page. */
 .auth-gate::before {
-  width: 460px; height: 460px; top: -170px; left: 50%; margin-left: -300px;
-  background: radial-gradient(circle, rgba(245, 197, 24, .22), transparent 70%);
-}
-.auth-gate::after {
-  width: 380px; height: 380px; bottom: -150px; right: 50%; margin-right: -280px;
-  background: radial-gradient(circle, rgba(245, 197, 24, .1), transparent 70%);
+  content: ''; position: fixed; inset: 0; pointer-events: none;
+  background: repeating-linear-gradient(0deg, rgba(27, 26, 22, .022) 0 1px, transparent 1px 3px);
 }
 
+/* `margin:auto` rather than `align-items:center` — centring a flex item that
+   overflows would put its own top out of the scrollbar's reach. */
 .auth-gate-card {
-  position: relative; z-index: 1;
-  width: 100%; max-width: 348px;
-  background: linear-gradient(170deg, rgba(38, 34, 22, .9), rgba(17, 17, 20, .92));
-  border: 1px solid rgba(245, 197, 24, .16);
-  border-radius: 22px;
-  box-shadow: 0 30px 70px -20px rgba(0, 0, 0, .8), inset 0 1px 0 rgba(255, 255, 255, .05);
-  backdrop-filter: blur(14px);
-  padding: 2.2rem 1.7rem 1.5rem; text-align: center;
-  animation: gate-in .5s cubic-bezier(.16, 1, .3, 1);
-}
-/* Gold hairline across the top edge, brightest in the middle. */
-.auth-gate-card::before {
-  content: ''; position: absolute; inset: 0 0 auto; height: 1px;
-  background: linear-gradient(90deg, transparent, rgba(245, 197, 24, .75), transparent);
+  position: relative; z-index: 1; margin: auto;
+  width: 100%; max-width: 418px;
+  animation: gate-in .45s cubic-bezier(.16, 1, .3, 1);
 }
 @keyframes gate-in {
-  from { opacity: 0; transform: translateY(14px) scale(.97) }
+  from { opacity: 0; transform: translateY(10px) }
   to { opacity: 1; transform: none }
 }
 
-.auth-gate-mark { position: relative; width: 84px; margin: 0 auto .9rem }
-.auth-gate-mark::before {
-  content: ''; position: absolute; inset: -22px; border-radius: 50%;
-  background: radial-gradient(circle, rgba(245, 197, 24, .28), transparent 68%);
-  filter: blur(12px);
+.gate-top { display: flex; align-items: center; justify-content: space-between; padding-bottom: .8rem }
+.auth-gate-logo { width: 40px; height: 40px; display: block }
+.gate-code {
+  font-family: var(--mono); font-size: .64rem; font-weight: 600;
+  letter-spacing: .24em; color: #6d6555;
 }
-.auth-gate-logo { position: relative; width: 84px; height: 84px; display: block }
+.gate-rule { border: 0; border-top: 1px solid #1b1a16 }
 
 .auth-gate-card h1 {
-  font-size: 1.02rem; font-weight: 600; letter-spacing: .1em;
-  color: #f4f2ea; margin-bottom: .55rem;
+  font-family: Georgia, "Times New Roman", "Noto Serif Thai", serif;
+  font-size: 2.3rem; line-height: 1.12; font-weight: 400; letter-spacing: -.01em;
+  color: #1b1a16; margin: 1.35rem 0 .55rem;
 }
-.auth-gate-card h1 span {
-  background: linear-gradient(95deg, #f5c518, #ffe58a 45%, #d9a400);
-  -webkit-background-clip: text; background-clip: text; color: transparent;
-}
+.auth-gate-card h1 em { font-style: italic; color: #8a6a00 }
 .auth-gate-sub {
-  display: flex; align-items: center; justify-content: center; gap: .6rem;
-  font-size: .6rem; letter-spacing: .2em; text-transform: uppercase;
-  color: rgba(255, 255, 255, .38); margin-bottom: 1.5rem;
+  font-size: .68rem; letter-spacing: .17em; text-transform: uppercase;
+  color: #6d6555; margin-bottom: 1.7rem;
 }
-.auth-gate-sub i { flex: 1; max-width: 34px; height: 1px; background: rgba(245, 197, 24, .3) }
-.auth-gate-hint { font-size: .8rem; color: rgba(255, 255, 255, .6) }
 
-/* --- PIN pad ----------------------------------------------------------- */
-.pin-dots { display: flex; justify-content: center; gap: 13px; margin: 1rem 0 .55rem }
+/* --- PIN entry --------------------------------------------------------- */
+/* Dots are drawn as rules, not circles — same five elements and the same
+   `.filled` class main.js toggles, just typeset to match the page. */
+.pin-dots { display: flex; gap: 9px; margin-bottom: .55rem }
 .pin-dots span {
-  width: 11px; height: 11px; border-radius: 50%;
-  border: 1.5px solid rgba(255, 255, 255, .22); background: transparent;
-  transition: background var(--t), border-color var(--t), transform var(--t), box-shadow var(--t);
+  width: 30px; height: 3px; background: #cdc6b3;
+  transition: background var(--t), transform var(--t);
 }
-.pin-dots span.filled {
-  background: var(--gold); border-color: var(--gold);
-  transform: scale(1.25); box-shadow: 0 0 12px rgba(245, 197, 24, .6);
-}
+.pin-dots span.filled { background: #1b1a16; transform: scaleY(1.35) }
 .pin-dots.shake { animation: pin-shake .34s }
 @keyframes pin-shake {
   0%,100% { transform: translateX(0) }
@@ -541,60 +515,45 @@ input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px va
   80% { transform: translateX(4px) }
 }
 
-.pin-pad {
-  display: grid; grid-template-columns: repeat(3, 1fr);
-  gap: 12px; margin-top: 1.15rem;
-}
+.pin-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin-top: 1.1rem }
 .pin-pad button {
-  height: 60px; border-radius: 50%;
-  border: 1px solid rgba(255, 255, 255, .09);
-  background: rgba(255, 255, 255, .045); color: #f0eee6;
-  font-family: var(--mono); font-size: 1.3rem; font-weight: 500; letter-spacing: 0;
+  height: 62px; border: 1px solid #1b1a16; border-radius: 3px;
+  background: transparent; color: #1b1a16;
+  font-family: Georgia, "Times New Roman", serif; font-size: 1.35rem; font-weight: 400;
   cursor: pointer; transition: var(--t);
   display: flex; align-items: center; justify-content: center;
   -webkit-tap-highlight-color: transparent;
 }
-.pin-pad button:hover {
-  background: rgba(245, 197, 24, .12); border-color: rgba(245, 197, 24, .5); color: #fff;
-}
-.pin-pad button:active {
-  transform: scale(.92);
-  background: var(--gold); border-color: var(--gold); color: var(--gold-ink);
-  box-shadow: 0 0 22px rgba(245, 197, 24, .45);
-}
-.pin-pad button:focus-visible { outline: 2px solid var(--gold); outline-offset: 3px }
-.pin-pad .pin-del {
-  background: transparent; border-color: transparent; color: rgba(255, 255, 255, .45);
-}
-.pin-pad .pin-del:hover {
-  background: rgba(255, 255, 255, .06); border-color: rgba(255, 255, 255, .12); color: #fff;
-}
-.pin-pad .pin-del svg { width: 21px; height: 21px }
+.pin-pad button:hover { background: rgba(27, 26, 22, .06) }
+.pin-pad button:active { background: #1b1a16; color: #f5f1e6 }
+.pin-pad button:focus-visible { outline: 2px solid #8a6a00; outline-offset: 2px }
+.pin-pad .pin-del { border-color: transparent; color: #6d6555 }
+.pin-pad .pin-del:hover { border-color: #cdc6b3; background: transparent; color: #1b1a16 }
+.pin-pad .pin-del svg { width: 20px; height: 20px }
 /* While the PIN is being checked the pad dims and stops accepting taps, so a
    second submit can't fire against a request already in flight. */
-.pin-pad.busy { opacity: .4; pointer-events: none }
+.pin-pad.busy { opacity: .38; pointer-events: none }
 
-.auth-gate-foot {
-  display: flex; align-items: center; justify-content: center; gap: .4rem;
-  margin-top: 1.5rem; padding-top: 1.1rem;
-  border-top: 1px solid rgba(255, 255, 255, .07);
-  font-size: .68rem; color: rgba(255, 255, 255, .32);
+.gate-foot {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-top: 1.1rem; padding-top: .9rem; border-top: 1px solid #cdc6b3;
+  font-size: .68rem; color: #8b8371;
 }
-.auth-gate-foot svg { width: 13px; height: 13px }
-.auth-gate .error-msg { display: block; color: #f5978d; font-size: .76rem; min-height: 1.1em }
+.gate-foot span { display: flex; align-items: center; gap: .32rem }
+.gate-foot svg { width: 12px; height: 12px }
+
+.auth-gate .error-msg { display: block; color: #a3271e; font-size: .74rem; min-height: 1.05em }
 .auth-gate .error-msg.hidden { display: none }
 
-/* Short screens (landscape phone): shrink the decoration, keep the keypad. */
+/* Short screens (landscape phone): trim the masthead, keep the keypad usable. */
 @media (max-height: 700px) {
-  .auth-gate-card { padding: 1.4rem 1.6rem 1.1rem }
-  .auth-gate-mark, .auth-gate-logo { width: 56px; height: 56px }
-  .auth-gate-mark { height: auto }
-  .auth-gate-sub { margin-bottom: .9rem }
-  .pin-pad button { height: 50px; font-size: 1.15rem }
-  .pin-pad { gap: 9px }
-  .auth-gate-foot { margin-top: 1rem; padding-top: .8rem }
+  .auth-gate-card h1 { font-size: 1.7rem; margin: .9rem 0 .4rem }
+  .auth-gate-sub { margin-bottom: 1rem }
+  .auth-gate-logo { width: 32px; height: 32px }
+  .pin-pad button { height: 50px; font-size: 1.2rem }
+  .pin-pad { gap: 7px; margin-top: .85rem }
+  .gate-foot { margin-top: .8rem; padding-top: .7rem }
 }
-
 /* ============================================================= motion === */
 @keyframes fade { from { opacity: 0 } to { opacity: 1 } }
 @keyframes slideIn { from { opacity: 0; transform: translateX(36px) } to { opacity: 1; transform: translateX(0) } }
