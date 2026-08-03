@@ -21,8 +21,20 @@
  *                    not used by this dashboard
  */
 
-const SHEET_ID = '1tjMRZSljGLy1irwUukDdV5bNcwSFTq5JoPCHSh0zoBs';
-const GID = '614260076';
+/**
+ * The sheet's "publish to web" CSV endpoint.
+ *
+ * Two things to know before changing this:
+ *  - Publishing is separate from link-sharing, so this keeps working even if
+ *    the sheet's sharing is tightened later.
+ *  - Google answers it with a 307 to a `doc-XX-XX-sheets.googleusercontent.com`
+ *    host, and that hostname varies per request. The CSP in public/_headers has
+ *    to allow `https://*.googleusercontent.com` in connect-src or the browser
+ *    blocks the redirect and the fetch fails with a bare "Failed to fetch"
+ *    (the violation is reported against docs.google.com, which is misleading).
+ */
+const SHEET_CSV_URL =
+  'https://docs.google.com/spreadsheets/d/e/2PACX-1vScmRS5VCtLON--xd_4FnRvUAV8pASPi8bPOq57jYStFzh0C97JtaisyOLjoGyIecYXhyIDceK4-7Jh/pub?gid=614260076&single=true&output=csv';
 
 /** The eight phone brands, and the column their [amount, units] pair starts at. */
 export const BRANDS = [
@@ -140,8 +152,14 @@ export function parseSalesCsv(csvText) {
 
 /** Fetch and parse the sheet. Throws with a readable message on failure. */
 export async function fetchSales() {
-  const url = `https://docs.google.com/spreadsheets/d/${SHEET_ID}/export?format=csv&gid=${GID}`;
-  const response = await fetch(url, { cache: 'no-store' });
+  let response;
+  try {
+    response = await fetch(SHEET_CSV_URL, { cache: 'no-store' });
+  } catch {
+    // fetch() rejects with a bare TypeError for both a CSP block and a dead
+    // network, so say what to check rather than surfacing "Failed to fetch".
+    throw new Error('เชื่อมต่อชีตยอดขายไม่ได้ — ตรวจอินเทอร์เน็ต หรือชีตอาจถูกปิดการเผยแพร่');
+  }
   if (!response.ok) {
     throw new Error(`อ่านชีตยอดขายไม่สำเร็จ (HTTP ${response.status})`);
   }
