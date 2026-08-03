@@ -67,7 +67,7 @@ src/
   installment.js            คำนวณค่างวดผ่อน (ดอกเบี้ยคงที่)
   utils.js                  ฟอร์แมต, parse CSV, escape HTML, timestamp มาตรฐาน
   icons.js                  รายชื่อไอคอน Lucide ที่ใช้จริง
-  style.css                 สไตล์ทั้งหมด (ธีมทอง-ดำ + โหมดการ์ดบนมือถือ)
+  style.css                 สไตล์ทั้งหมด (ธีมสิ่งพิมพ์ ครีม-หมึก + โหมดการ์ดบนมือถือ)
 public/
   _headers                  security headers ของ Cloudflare Pages (รวม CSP)
   logo.svg                  โลโก้ BSD (ไซด์บาร์ + หน้าล็อกอิน)

@@ -1,88 +1,110 @@
 /* ============================================================= tokens === */
-/* Style: dark rail + light workspace, gold accent from the BSD shield logo.
-   The sidebar stays dark in BOTH themes on purpose — that constant contrast is
-   what makes the workspace read as "the page" and the rail as "the chrome".
-   Only the content area flips between day and night.
+/* Style: editorial — cream paper, ink rules, a serif masthead and mono figures.
+   The whole app speaks the language of the login page: nothing floats on a
+   shadow, everything is separated by a hairline, and the only ornament is the
+   rule itself. Cards are sheets, the sidebar is the gutter, tables are set
+   like a printed ledger.
 
-   Gold is the brand: logo, active nav, primary button, money figures. It is
-   deliberately NOT used for status — pending/received/deleted keep the amber,
-   green and red the Google Sheet uses, so a row reads the same in both places
-   and gold never means "a state". */
+   Three type roles, and they do not overlap:
+     --serif  headings and titles only
+     --mono   every figure, plus micro-labels and running heads
+     --font   body copy and controls (Thai reads best here)
+
+   Ink (--rule) is the interactive accent: active nav, primary button, a
+   pressed key. Gold is reserved for MONEY and chart fills — it is the brand,
+   not a state. Status keeps the amber / green / red of the Google Sheet, so a
+   row reads the same in both places. */
 :root {
-  --rail: #141416;
-  --rail-2: #212126;
-  --rail-text: #8a8a93;
-  --rail-text-strong: #f2f2f4;
+  --rule: #1b1a16;          /* full-strength ink hairline */
+  --rail: #eee8d7;          /* the gutter: one shade deeper than the page */
+  --rail-2: rgba(27, 26, 22, .07);
+  --rail-text: #6d6555;
+  --rail-text-strong: #1b1a16;
 
-  --gold: #f5c518;
-  --gold-ink: #191505;
-  --gold-soft: #fdf4d4;
-  --gold-deep: #8a6a00;
+  --gold: #8a6a00;
+  --gold-ink: #f7f3e8;
+  --gold-soft: rgba(138, 106, 0, .12);
+  --gold-deep: #7a5e00;
 
-  --mint: #2dd4a7;
-  --mint-ink: #0b1015;
-  --mint-soft: #e4fbf3;
-  --mint-deep: #0f766e;
+  --mint: #4f7a52;
+  --mint-ink: #f7f3e8;
+  --mint-soft: rgba(79, 122, 82, .13);
+  --mint-deep: #3d6340;
 
-  --amber: #f0a93b;
-  --amber-soft: #fff3d6;
-  --amber-deep: #8a5a00;
-  --blue: #5b8def;
-  --rose: #e2574c;
-  --rose-soft: #fdeceb;
-  --rose-deep: #a3271e;
+  --amber: #a97b1c;
+  --amber-soft: rgba(169, 123, 28, .13);
+  --amber-deep: #86601a;
+  --blue: #4a6b8a;
+  --rose: #a3392c;
+  --rose-soft: rgba(163, 57, 44, .12);
+  --rose-deep: #8c2f24;
 
-  --bg: #f7f9fa;
-  --surface: #ffffff;
-  --surface-2: #eef2f5;
-  --border: #e3e8ec;
-  --border-strong: #cfd7de;
-  --text: #131a22;
-  --text-secondary: #5a6672;
-  --text-muted: #93a0ab;
+  --bg: #f5f1e6;
+  --surface: #fcfaf3;
+  --surface-2: #eee8d7;
+  --border: #ded7c4;
+  --border-strong: #b8b09b;
+  --text: #1b1a16;
+  --text-secondary: #6d6555;
+  /* Not lighter than this: muted carries the column heads and the mobile row
+     labels, so it has to clear 4.5:1 on both the page and a card. */
+  --text-muted: #736b59;
 
-  --btn: #f5c518;
-  --btn-hover: #ffd84a;
-  --btn-text: #191505;
+  --btn: #1b1a16;
+  --btn-hover: #35322a;
+  --btn-text: #f5f1e6;
 
-  --r-sm: 7px;
-  --r: 9px;
-  --r-lg: 13px;
-  --r-full: 9999px;
-  --shadow-sm: 0 1px 2px rgba(19, 26, 34, .05);
-  --shadow-md: 0 6px 20px rgba(19, 26, 34, .1);
-  --shadow-drawer: -10px 0 40px rgba(19, 26, 34, .18);
+  --r-sm: 2px;
+  --r: 3px;
+  --r-lg: 4px;
+  --r-full: 2px;            /* print has no pills — tags are square */
+  --shadow-sm: none;
+  --shadow-md: 0 4px 18px rgba(27, 26, 22, .12);
+  --shadow-drawer: -8px 0 32px rgba(27, 26, 22, .16);
 
   --font: "Prompt", -apple-system, BlinkMacSystemFont, sans-serif;
+  --serif: Georgia, "Times New Roman", "Noto Serif Thai", serif;
   --mono: "IBM Plex Mono", Consolas, ui-monospace, monospace;
   --t: .18s cubic-bezier(.4, 0, .2, 1);
 }
+/* Night edition — the same paper printed dark. Warm greys throughout, never
+   blue, so it reads as ink on board rather than as a generic dark UI. */
 [data-theme=dark] {
-  --bg: #0f151b;
-  --surface: #171e26;
-  --surface-2: #1c242d;
-  --border: #253039;
-  --border-strong: #35424e;
-  --text: #e6ecf2;
-  --text-secondary: #8497a8;
-  --text-muted: #6e8092;
+  --rule: #6b6350;
+  --rail: #131109;
+  --rail-2: rgba(237, 231, 214, .08);
+  --rail-text: #a49b83;
+  --rail-text-strong: #f2ecdb;
 
-  --gold-soft: rgba(245, 197, 24, .16);
-  --gold-deep: #f0c34a;
-  --mint-soft: rgba(45, 212, 167, .16);
-  --mint-deep: #63d7b8;
-  --amber-soft: rgba(240, 169, 59, .16);
-  --amber-deep: #f0b962;
-  --rose-soft: rgba(226, 87, 76, .16);
-  --rose-deep: #ef8880;
+  --bg: #17150f;
+  --surface: #1f1c14;
+  --surface-2: #262218;
+  --border: #3a3426;
+  --border-strong: #56503c;
+  --text: #ede7d6;
+  --text-secondary: #a49b83;
+  --text-muted: #938b76;
 
-  --btn: #f5c518;
-  --btn-hover: #ffd84a;
-  --btn-text: #191505;
+  --gold: #d9b25a;
+  --gold-ink: #17150f;
+  --gold-soft: rgba(217, 178, 90, .15);
+  --gold-deep: #e2c076;
 
-  --shadow-sm: 0 1px 2px rgba(0, 0, 0, .3);
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, .45);
-  --shadow-drawer: -10px 0 40px rgba(0, 0, 0, .6);
+  --mint: #7fae82;
+  --mint-soft: rgba(127, 174, 130, .16);
+  --mint-deep: #96c199;
+  --amber-soft: rgba(217, 178, 90, .16);
+  --amber-deep: #d9b25a;
+  --rose: #d97b6c;
+  --rose-soft: rgba(217, 123, 108, .16);
+  --rose-deep: #e59486;
+
+  --btn: #ede7d6;
+  --btn-hover: #fffaea;
+  --btn-text: #17150f;
+
+  --shadow-md: 0 8px 24px rgba(0, 0, 0, .5);
+  --shadow-drawer: -10px 0 40px rgba(0, 0, 0, .65);
 }
 
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0 }
@@ -94,6 +116,10 @@ body {
   min-height: 100vh;
   -webkit-font-smoothing: antialiased;
 }
+/* Headings are the serif voice of the app. Weight stays at 400 — a serif at
+   600 on cream reads as heavy rather than as a masthead. */
+h1, h2, h3, h4 { font-family: var(--serif); font-weight: 400; letter-spacing: -.005em }
+
 .hidden { display: none !important }
 .mono { font-family: var(--mono); font-variant-numeric: tabular-nums }
 .text-muted { color: var(--text-secondary); font-size: .88rem }
@@ -105,19 +131,26 @@ body {
 
 .sidebar {
   background: var(--rail);
+  border-right: 1px solid var(--rule);
   padding: 14px 10px;
   display: flex; flex-direction: column;
   position: sticky; top: 0; height: 100vh;
 }
-.side-brand { display: flex; align-items: center; gap: 9px; padding: 0 4px; margin-bottom: 16px }
-.side-logo { width: 30px; height: 30px; flex-shrink: 0; display: block }
-.side-name { font-size: .74rem; font-weight: 600; letter-spacing: .1em; color: var(--rail-text-strong); line-height: 1.2 }
-.side-name small {
-  display: block; font-size: .58rem; font-weight: 400; letter-spacing: .06em;
-  color: var(--gold); margin-top: 1px;
+.side-brand {
+  display: flex; align-items: center; gap: 9px; padding: 0 4px 12px;
+  margin-bottom: 12px; border-bottom: 1px solid var(--rule);
 }
-.side-nav { display: flex; flex-direction: column; gap: 2px }
-.side-foot { margin-top: auto; display: flex; flex-direction: column; gap: 2px; padding-top: 12px; border-top: 1px solid rgba(255, 255, 255, .07) }
+.side-logo { width: 30px; height: 30px; flex-shrink: 0; display: block }
+.side-name {
+  font-family: var(--serif); font-size: .95rem; font-weight: 400;
+  letter-spacing: .04em; color: var(--rail-text-strong); line-height: 1.15;
+}
+.side-name small {
+  display: block; font-family: var(--mono); font-size: .54rem; font-weight: 600;
+  letter-spacing: .14em; text-transform: uppercase; color: var(--gold-deep); margin-top: 2px;
+}
+.side-nav { display: flex; flex-direction: column; gap: 1px }
+.side-foot { margin-top: auto; display: flex; flex-direction: column; gap: 1px; padding-top: 12px; border-top: 1px solid var(--border) }
 
 .nav-item {
   display: flex; align-items: center; gap: 9px;
@@ -128,14 +161,16 @@ body {
   cursor: pointer; text-align: left; transition: var(--t);
 }
 .nav-item:hover { background: var(--rail-2); color: var(--rail-text-strong) }
-.nav-item.is-active { background: var(--gold); color: var(--gold-ink); font-weight: 500 }
-.nav-item.nav-danger:hover { background: rgba(226, 87, 76, .15); color: #ff8f86 }
+/* Solid ink, the same mark a pressed key makes on the login page. */
+.nav-item.is-active { background: var(--rule); color: var(--rail); font-weight: 500 }
+.nav-item.nav-danger:hover { background: var(--rose-soft); color: var(--rose-deep) }
 .nav-count {
-  margin-left: auto; font-style: normal; font-size: .7rem; font-weight: 500;
-  padding: 1px 6px; border-radius: 5px;
+  margin-left: auto; font-family: var(--mono); font-style: normal;
+  font-size: .66rem; font-weight: 600; font-variant-numeric: tabular-nums;
+  padding: 1px 5px; border-radius: var(--r-sm);
   background: var(--rail-2); color: var(--rail-text);
 }
-.nav-item.is-active .nav-count { background: rgba(25, 21, 5, .2); color: var(--gold-ink) }
+.nav-item.is-active .nav-count { background: rgba(245, 241, 230, .2); color: var(--rail) }
 
 /* ============================================================ content === */
 .content { padding: 16px 20px 32px; min-width: 0 }
@@ -147,17 +182,18 @@ body {
 .search-box input { padding-left: 2.2rem }
 .conn-pill {
   display: inline-flex; align-items: center; gap: .35rem;
-  font-size: .72rem; padding: .3rem .7rem; border-radius: var(--r-full);
-  background: var(--mint-soft); color: var(--mint-deep); font-weight: 500;
+  font-size: .7rem; padding: .28rem .6rem; border-radius: var(--r-sm);
+  border: 1px solid currentColor; background: transparent;
+  color: var(--mint-deep); font-weight: 500;
 }
-.conn-pill.is-error { background: var(--rose-soft); color: var(--rose-deep) }
+.conn-pill.is-error { color: var(--rose-deep) }
 
 /* -------------------------------------------------------------- kpis ---- */
 .kpi-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 9px; margin-bottom: 14px }
 .kpi {
   background: var(--surface);
   border: 1px solid var(--border);
-  border-left: 3px solid var(--border-strong);
+  border-left: 2px solid var(--border-strong);
   border-radius: var(--r);
   padding: 9px 12px;
   display: flex; flex-direction: column;
@@ -166,10 +202,16 @@ body {
 .kpi-amber { border-left-color: var(--amber) }
 .kpi-blue { border-left-color: var(--blue) }
 .kpi-label {
-  font-size: .62rem; letter-spacing: .1em; text-transform: uppercase;
+  font-family: var(--mono); font-size: .58rem; font-weight: 600;
+  letter-spacing: .14em; text-transform: uppercase;
   color: var(--text-secondary);
 }
-.kpi-value { font-size: 1.15rem; font-weight: 600; line-height: 1.3 }
+/* Every figure in the app is set in mono with tabular numerals, so columns of
+   money line up digit over digit the way a ledger does. */
+.kpi-value {
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
+  font-size: 1.12rem; font-weight: 600; line-height: 1.35;
+}
 .kpi-gold .kpi-value { color: var(--gold-deep) }
 
 /* ------------------------------------------------------- date groups ---- */
@@ -179,32 +221,39 @@ body {
   border: 1px solid var(--border);
   border-radius: var(--r-lg);
   overflow: hidden;
-  box-shadow: var(--shadow-sm);
 }
+/* No fill behind the header — an ink rule under it does the separating, the
+   way a section head is set off in print. */
 .date-group-header {
-  background: var(--surface-2);
+  background: transparent;
   padding: .6rem 1rem;
   display: flex; justify-content: space-between; align-items: center;
-  border-bottom: 1px solid var(--border);
+  border-bottom: 1px solid var(--rule);
   flex-wrap: wrap; gap: .4rem;
 }
-.date-title { font-size: .82rem; font-weight: 600; display: flex; align-items: center; gap: .4rem }
+.date-title {
+  font-family: var(--serif); font-size: .96rem; font-weight: 400;
+  display: flex; align-items: center; gap: .45rem;
+}
 .date-title i { color: var(--gold-deep) }
 .date-summary-tag {
-  font-size: .78rem; font-weight: 600;
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
+  font-size: .74rem; font-weight: 600;
   background: var(--gold-soft); color: var(--gold-deep);
-  padding: .15rem .65rem; border-radius: var(--r-full);
+  padding: .12rem .5rem; border-radius: var(--r-sm);
 }
 
 /* ------------------------------------------------------------- table ---- */
 .table-responsive { overflow-x: auto }
 .data-table { width: 100%; border-collapse: collapse; text-align: left }
+/* Column heads are a running head: mono small-caps over a hairline, no fill. */
 .data-table th {
-  padding: .5rem .85rem;
-  font-size: .62rem; font-weight: 500; letter-spacing: .11em; text-transform: uppercase;
+  padding: .45rem .85rem;
+  font-family: var(--mono);
+  font-size: .58rem; font-weight: 600; letter-spacing: .14em; text-transform: uppercase;
   color: var(--text-muted);
-  background: var(--surface-2);
-  border-bottom: 1px solid var(--border);
+  background: transparent;
+  border-bottom: 1px solid var(--rule);
   white-space: nowrap;
 }
 .data-table td {
@@ -224,21 +273,32 @@ tr.row-received .name-cell::before { background: var(--mint) }
 tr.row-deleted .name-cell::before { background: var(--rose) }
 tr.row-deleted td { color: var(--text-muted); text-decoration: line-through }
 tr.row-deleted td.no-strike { text-decoration: none }
-.amount-cell { text-align: right; font-weight: 600 }
+.amount-cell {
+  text-align: right; font-weight: 600;
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
+}
 .phone-tag {
-  font-family: var(--mono); font-size: .76rem;
-  color: var(--text-secondary); background: var(--surface-2);
+  font-family: var(--mono); font-size: .74rem;
+  color: var(--text-secondary); background: transparent;
   border: 1px solid var(--border);
-  padding: .1rem .45rem; border-radius: var(--r-sm);
+  padding: .1rem .4rem; border-radius: var(--r-sm);
 }
 
-.status-chip { display: inline-block; font-size: .68rem; font-weight: 600; padding: .15rem .6rem; border-radius: var(--r-full); white-space: nowrap }
-.chip-pending { background: var(--amber-soft); color: var(--amber-deep) }
-.chip-received { background: var(--mint-soft); color: var(--mint-deep) }
-.chip-deleted { background: var(--rose-soft); color: var(--rose-deep) }
+/* Status keeps the sheet's three colours but is drawn as a stamped tag —
+   hairline box, no fill — so it sits in the page instead of on top of it. */
+.status-chip {
+  display: inline-block; font-size: .68rem; font-weight: 600;
+  padding: .1rem .5rem; border-radius: var(--r-sm);
+  border: 1px solid currentColor; background: transparent;
+  white-space: nowrap;
+}
+.chip-pending { color: var(--amber-deep) }
+.chip-received { color: var(--mint-deep) }
+.chip-deleted { color: var(--rose-deep) }
 
 .action-btns { display: flex; justify-content: flex-end; gap: .25rem }
-.summary-total td { background: var(--surface-2); border-top: 2px solid var(--border-strong) }
+/* A double rule above the total: the printer's way of closing a column. */
+.summary-total td { background: transparent; border-top: 3px double var(--rule) }
 .summary-total .amount-cell { color: var(--gold-deep) }
 input:disabled { background: var(--surface-2); color: var(--text-muted); cursor: not-allowed }
 .empty-state { text-align: center; padding: 3rem 1rem; color: var(--text-muted) }
@@ -246,9 +306,10 @@ input:disabled { background: var(--surface-2); color: var(--text-muted); cursor:
 
 /* ==================================================== sales dashboard === */
 .side-section {
-  display: block; padding: 10px 10px 4px;
-  font-size: .58rem; letter-spacing: .16em; text-transform: uppercase;
-  color: #5c5c66;
+  display: block; padding: 12px 10px 4px;
+  font-family: var(--mono); font-size: .54rem; font-weight: 600;
+  letter-spacing: .18em; text-transform: uppercase;
+  color: var(--text-muted);
 }
 .content-top.sales-mode .search-box,
 .content-top.sales-mode #add-open-btn { display: none }
@@ -256,8 +317,8 @@ input:disabled { background: var(--surface-2); color: var(--text-muted); cursor:
 .sales-toolbar { display: flex; align-items: center; gap: .5rem; flex-wrap: wrap; margin-bottom: 12px }
 .mini-select {
   height: 30px; padding: 0 .5rem;
-  background: var(--surface); color: var(--text);
-  border: 1px solid var(--border); border-radius: var(--r-sm);
+  background: transparent; color: var(--text);
+  border: 1px solid var(--border-strong); border-radius: var(--r-sm);
   font-family: var(--font); font-size: .8rem;
 }
 .sales-stamp { margin-left: auto; font-size: .68rem; color: var(--text-muted) }
@@ -282,11 +343,17 @@ input:disabled { background: var(--surface-2); color: var(--text-muted); cursor:
 }
 .bar-name { font-size: .76rem; font-weight: 500 }
 .bar-track { position: relative; height: 20px }
-.bar { position: absolute; left: 0; border-radius: 3px; transition: width var(--t) }
+.bar { position: absolute; left: 0; border-radius: 1px; transition: width var(--t) }
 .bar-now { top: 0; height: 11px; background: var(--gold) }
 .bar-prev { bottom: 0; height: 6px; background: var(--border-strong) }
-.bar-value { font-size: .76rem; font-weight: 600; text-align: right }
-.bar-diff { font-size: .68rem; text-align: right; color: var(--text-muted) }
+.bar-value {
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
+  font-size: .74rem; font-weight: 600; text-align: right;
+}
+.bar-diff {
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
+  font-size: .66rem; text-align: right; color: var(--text-muted);
+}
 .bar-diff.up { color: var(--mint-deep) }
 .bar-diff.down { color: var(--rose-deep) }
 
@@ -300,7 +367,8 @@ input:disabled { background: var(--surface-2); color: var(--text-muted); cursor:
 .target-ring {
   width: 66px; height: 66px; border-radius: 50%; flex-shrink: 0;
   display: flex; align-items: center; justify-content: center;
-  font-size: .82rem; font-weight: 600; color: var(--text);
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
+  font-size: .8rem; font-weight: 600; color: var(--text);
   background: conic-gradient(var(--gold) calc(var(--pct) * 1%), var(--surface-2) 0);
   position: relative;
 }
@@ -316,10 +384,16 @@ input:disabled { background: var(--surface-2); color: var(--text-muted); cursor:
   align-items: center; gap: 9px; padding: .28rem 0; font-size: .74rem;
 }
 .target-name { font-weight: 500 }
-.target-track { height: 7px; background: var(--surface-2); border-radius: 4px; overflow: hidden }
-.target-fill { height: 100%; background: var(--gold); border-radius: 4px }
-.target-pct { text-align: right; font-weight: 600 }
-.target-num { text-align: right; color: var(--text-secondary); font-size: .68rem }
+.target-track { height: 7px; background: var(--surface-2); border-radius: 1px; overflow: hidden }
+.target-fill { height: 100%; background: var(--gold); border-radius: 1px }
+.target-pct {
+  text-align: right; font-weight: 600;
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
+}
+.target-num {
+  text-align: right; color: var(--text-secondary); font-size: .66rem;
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
+}
 
 /* --- target editor ----------------------------------------------------- */
 .target-head-actions { display: flex; gap: .4rem; align-items: center; flex-wrap: wrap }
@@ -335,7 +409,10 @@ input:disabled { background: var(--surface-2); color: var(--text-muted); cursor:
   border-top: 1px solid var(--border);
   font-size: .8rem; color: var(--text-secondary);
 }
-.target-edit-total strong { font-size: 1rem; color: var(--gold-deep) }
+.target-edit-total strong {
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
+  font-size: 1rem; color: var(--gold-deep);
+}
 .target-edit-actions { display: flex; justify-content: flex-end; gap: .5rem; margin-top: .7rem }
 
 /* --- installment calculator -------------------------------------------- */
@@ -348,7 +425,10 @@ input:disabled { background: var(--surface-2); color: var(--text-muted); cursor:
 .inst-field input { width: 170px }
 .inst-down-out { display: flex; flex-direction: column; margin-left: auto }
 .inst-down-out .kpi-value { font-size: 1.1rem; color: var(--gold-deep) }
-.inst-monthly { color: var(--gold-deep); font-size: .95rem }
+.inst-monthly {
+  font-family: var(--mono); font-variant-numeric: tabular-nums;
+  color: var(--gold-deep); font-size: .95rem; font-weight: 600;
+}
 
 @media (max-width: 620px) {
   .target-edit-row { grid-template-columns: 74px 1fr }
@@ -371,8 +451,8 @@ input:disabled { background: var(--surface-2); color: var(--text-muted); cursor:
 }
 .btn-primary { background: var(--btn); color: var(--btn-text) }
 .btn-primary:hover { background: var(--btn-hover) }
-.btn-outline { background: transparent; color: var(--text); border-color: var(--border-strong) }
-.btn-outline:hover { background: var(--surface-2) }
+.btn-outline { background: transparent; color: var(--text); border-color: var(--rule) }
+.btn-outline:hover { background: var(--rail-2) }
 .btn-success { background: var(--mint); color: var(--mint-ink) }
 .btn-danger.btn-outline { color: var(--rose); border-color: var(--rose) }
 .btn-danger.btn-outline:hover { background: var(--rose-soft) }
@@ -397,9 +477,12 @@ input:disabled { background: var(--surface-2); color: var(--text-muted); cursor:
 .form-group label { font-size: .76rem; font-weight: 500; display: flex; align-items: center; gap: .3rem }
 .required { color: var(--rose) }
 .input-wrapper { position: relative; display: flex; align-items: center }
+/* Fields are ruled boxes, not filled ones — a fill would read as the same
+   sheet as whatever is behind it (the drawer and the field share --surface).
+   The border carries the shape, so a field looks the same anywhere. */
 input[type=text], input[type=tel], input[type=number], input[type=password] {
   width: 100%; height: 34px; padding: .4rem .7rem;
-  background: var(--surface); border: 1px solid var(--border);
+  background: transparent; border: 1px solid var(--border-strong);
   border-radius: var(--r-sm); color: var(--text);
   font-family: var(--font); font-size: .82rem; transition: var(--t);
 }
@@ -409,7 +492,7 @@ input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px va
 .error-msg { color: var(--rose); font-size: .78rem; margin-top: .25rem; display: block }
 
 /* ============================================================= drawer === */
-.drawer-overlay { position: fixed; inset: 0; background: rgba(11, 16, 21, .5); z-index: 900; animation: fade .18s ease-out }
+.drawer-overlay { position: fixed; inset: 0; background: rgba(27, 26, 22, .45); z-index: 900; animation: fade .18s ease-out }
 .drawer {
   position: fixed; top: 0; right: 0; bottom: 0;
   width: 360px; max-width: 92vw;
@@ -419,8 +502,8 @@ input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px va
   transform: translateX(100%); transition: transform .26s cubic-bezier(.4, 0, .2, 1);
 }
 .drawer.open { transform: translateX(0) }
-.drawer-header { padding: .9rem 1.1rem; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: center }
-.drawer-header h3 { font-size: .98rem; font-weight: 600; display: flex; align-items: center; gap: .45rem }
+.drawer-header { padding: .9rem 1.1rem; border-bottom: 1px solid var(--rule); display: flex; justify-content: space-between; align-items: center }
+.drawer-header h3 { font-size: 1.15rem; display: flex; align-items: center; gap: .45rem }
 .drawer-body { padding: 1.1rem; overflow-y: auto }
 .drawer-note {
   font-size: .72rem; color: var(--text-secondary);
@@ -597,7 +680,8 @@ input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px va
   .data-table td::before {
     content: attr(data-label);
     flex-shrink: 0;
-    font-size: .68rem; letter-spacing: .08em; text-transform: uppercase;
+    font-family: var(--mono); font-size: .6rem; font-weight: 600;
+    letter-spacing: .12em; text-transform: uppercase;
     color: var(--text-muted); text-align: left;
   }
   /* Cells with nothing to label (the spacer in the summary footer) collapse. */
