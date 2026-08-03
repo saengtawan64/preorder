@@ -3,8 +3,8 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>BSD · ระบบจัดเก็บและตรวจสอบมัดจำสินค้า</title>
-  <meta name="description" content="ระบบภายในสำหรับพนักงาน — บันทึกและตรวจสอบข้อมูลมัดจำสินค้า" />
+  <title>BSD · ระบบหลังร้าน บานาน่า</title>
+  <meta name="description" content="ระบบภายในสำหรับพนักงาน — มัดจำสินค้าและแดชบอร์ดยอดขาย" />
   <meta name="robots" content="noindex, nofollow" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
@@ -50,10 +50,11 @@
       <aside class="sidebar" id="sidebar">
         <div class="side-brand">
           <img src="/logo.svg" alt="" class="side-logo" width="30" height="30" />
-          <span class="side-name">BSD<small>Secure Deposit</small></span>
+          <span class="side-name">BSD<small>ระบบหลังร้าน</small></span>
         </div>
 
         <nav class="side-nav">
+          <span class="side-section">มัดจำ</span>
           <button class="nav-item is-active" id="nav-pending" data-mode="pending">
             <i data-lucide="clock"></i><span>รอรับของ</span><em class="nav-count" id="count-pending">0</em>
           </button>
@@ -65,6 +66,11 @@
           </button>
           <button class="nav-item" id="nav-summary" data-mode="summary">
             <i data-lucide="coins"></i><span>สรุปยอด</span>
+          </button>
+
+          <span class="side-section">ยอดขาย</span>
+          <button class="nav-item" id="nav-sales" data-mode="sales">
+            <i data-lucide="chart-column"></i><span>แดชบอร์ด</span>
           </button>
         </nav>
 
@@ -92,7 +98,7 @@
           </button>
         </div>
 
-        <div class="kpi-grid">
+        <div class="kpi-grid" id="deposit-kpis">
           <div class="kpi kpi-gold">
             <span class="kpi-label">ยอดมัดจำถือครอง</span>
             <span class="kpi-value mono" id="metric-total-amount">฿0</span>
@@ -109,6 +115,7 @@
 
         <div id="grouped-dates-container"></div>
         <div id="summary-container" class="hidden"></div>
+        <div id="sales-container" class="hidden"></div>
 
         <div id="table-empty-state" class="empty-state hidden">
           <i data-lucide="inbox"></i>

@@ -13,6 +13,8 @@ import {
   addDeposit,
 } from './firebase.js';
 import { persistTheme, resetOnSignOut, state } from './state.js';
+import { fetchSales } from './sales.js';
+import { renderSalesDashboard } from './sales-view.js';
 import {
   bangkokTimestamp,
   csvCell,
@@ -40,6 +42,7 @@ const el = {
   navReceived: document.getElementById('nav-received'),
   navDeleted: document.getElementById('nav-deleted'),
   navSummary: document.getElementById('nav-summary'),
+  navSales: document.getElementById('nav-sales'),
   countPending: document.getElementById('count-pending'),
   countReceived: document.getElementById('count-received'),
   countDeleted: document.getElementById('count-deleted'),
@@ -69,6 +72,9 @@ const el = {
   connectionStatus: document.getElementById('connection-status'),
   groupedDatesContainer: document.getElementById('grouped-dates-container'),
   summaryContainer: document.getElementById('summary-container'),
+  salesContainer: document.getElementById('sales-container'),
+  depositKpis: document.getElementById('deposit-kpis'),
+  contentTop: document.querySelector('.content-top'),
   tableEmptyState: document.getElementById('table-empty-state'),
 
   metricTotalAmount: document.getElementById('metric-total-amount'),
@@ -502,10 +508,87 @@ function renderSummary() {
     </div>`;
 }
 
+/* ------------------------------------------------------ sales dashboard --- */
+
+// Fetched once per session and reused when switching back; "รีเฟรช" forces a
+// re-read. The sheet is a hand-maintained document, not a live feed.
+const sales = { months: null, index: 0, mode: 'amount', group: 'all', updatedAt: '', loading: false };
+
+async function showSales({ force = false } = {}) {
+  el.salesContainer.classList.remove('hidden');
+
+  if (!sales.months || force) {
+    if (sales.loading) return;
+    sales.loading = true;
+    el.salesContainer.innerHTML =
+      '<div class="empty-state"><i data-lucide="refresh-cw"></i><p>กำลังโหลดยอดขายจากชีต...</p></div>';
+    refreshIcons();
+
+    try {
+      sales.months = await fetchSales();
+      sales.index = sales.months.length - 1; // เปิดมาที่เดือนล่าสุดที่มีข้อมูล
+      sales.updatedAt = bangkokTimestamp();
+    } catch (error) {
+      console.error('โหลดยอดขายไม่สำเร็จ:', error);
+      el.salesContainer.innerHTML = `
+        <div class="empty-state">
+          <i data-lucide="alert-triangle"></i>
+          <p>${escapeHtml(error.message || 'โหลดยอดขายไม่สำเร็จ')}</p>
+          <button id="sales-retry" class="btn btn-outline btn-sm margin-top">ลองใหม่</button>
+        </div>`;
+      refreshIcons();
+      return;
+    } finally {
+      sales.loading = false;
+    }
+  }
+
+  renderSalesDashboard(el.salesContainer, {
+    months: sales.months,
+    monthIndex: sales.index,
+    mode: sales.mode,
+    groupKey: sales.group,
+    updatedAt: sales.updatedAt,
+  });
+  refreshIcons();
+}
+
+/* Delegated so the controls survive every dashboard re-render. */
+el.salesContainer.addEventListener('click', (event) => {
+  if (event.target.closest('#sales-retry') || event.target.closest('#sales-refresh')) {
+    showSales({ force: true });
+    return;
+  }
+  const modeBtn = event.target.closest('.mode-btn[data-mode]');
+  if (modeBtn) {
+    sales.mode = modeBtn.getAttribute('data-mode');
+    showSales();
+  }
+});
+
+el.salesContainer.addEventListener('change', (event) => {
+  if (event.target.id === 'sales-month') {
+    sales.index = Number(event.target.value);
+    showSales();
+  } else if (event.target.id === 'sales-group') {
+    sales.group = event.target.value;
+    showSales();
+  }
+});
+
 function renderList() {
   renderCounts();
   renderMetrics();
   syncNavButtons();
+
+  if (listMode === 'sales') {
+    el.groupedDatesContainer.classList.add('hidden');
+    el.summaryContainer.classList.add('hidden');
+    el.tableEmptyState.classList.add('hidden');
+    showSales();
+    return;
+  }
+  el.salesContainer.classList.add('hidden');
 
   if (listMode === 'summary') {
     el.groupedDatesContainer.classList.add('hidden');
@@ -597,6 +680,12 @@ function syncNavButtons() {
   el.navReceived.classList.toggle('is-active', listMode === 'received');
   el.navDeleted.classList.toggle('is-active', listMode === 'deleted');
   el.navSummary.classList.toggle('is-active', listMode === 'summary');
+  el.navSales.classList.toggle('is-active', listMode === 'sales');
+
+  // The deposit search box and KPI tiles belong to the deposit views only.
+  const onSales = listMode === 'sales';
+  el.depositKpis.classList.toggle('hidden', onSales);
+  el.contentTop.classList.toggle('sales-mode', onSales);
   // Searching a month-by-month roll-up doesn't mean anything.
   el.searchInput.disabled = listMode === 'summary';
 }
@@ -612,6 +701,7 @@ el.navPending.addEventListener('click', () => setListMode('pending'));
 el.navReceived.addEventListener('click', () => setListMode('received'));
 el.navDeleted.addEventListener('click', () => setListMode('deleted'));
 el.navSummary.addEventListener('click', () => setListMode('summary'));
+el.navSales.addEventListener('click', () => setListMode('sales'));
 el.sidebarToggle.addEventListener('click', () => el.sidebar.classList.toggle('open'));
 
 /* --------------------------------------------------- add-deposit drawer --- */
