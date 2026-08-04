@@ -557,7 +557,7 @@ input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px va
 .error-msg { color: var(--rose); font-size: .78rem; margin-top: .25rem; display: block }
 
 /* ============================================================= drawer === */
-.drawer-overlay { position: fixed; inset: 0; background: rgba(27, 26, 22, .45); z-index: 900; animation: fade .18s ease-out }
+.drawer-overlay { position: fixed; inset: 0; background: rgba(22, 32, 43, .45); z-index: 900; animation: fade .18s ease-out }
 .drawer {
   position: fixed; top: 0; right: 0; bottom: 0;
   width: 360px; max-width: 92vw;
@@ -593,67 +593,80 @@ input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px va
 .toast-warning { border-left-color: var(--amber) }
 
 /* ========================================================== auth gate === */
-/* Style C — "editorial". The gate is deliberately the odd one out in this app:
-   cream paper, a serif masthead, hairline rules and square keys. It reads as
-   the printed cover of a ledger, and the dashboard behind it as the ledger.
+/* The front door states the app's whole idea in one card: dark chrome over a
+   light working surface, exactly like the rail over the workspace behind it.
+   The masthead sits in the dark band; the keypad — the part you actually use —
+   sits on white where it is easiest to read and hit.
 
-   Like the sidebar it is FIXED in both themes — the colours below are literal,
-   not tokens, so day/night cannot flip it. */
+   FIXED in both themes, like the rail, so the colours below are literal rather
+   than tokens: day/night must not flip the front door. Each one is the same
+   value as its token twin in the palette above; if the palette moves, move
+   these to match. */
 .auth-gate {
   min-height: 100vh; min-height: 100dvh;
   display: flex; padding: 1.5rem;
-  /* y-auto rescues short screens (landscape phone), where the column is taller
-     than the viewport; x-hidden keeps the paper grain from widening the page. */
+  /* y-auto rescues short screens (landscape phone), where the card is taller
+     than the viewport; x-hidden keeps the glow from widening the page. */
   overflow-x: hidden; overflow-y: auto;
-  background: #f5f1e6;
-  color: #1b1a16;
+  background: #eef1f5;
+  color: #16202b;
 }
-/* Faint horizontal fibre, the only texture on the page. */
+/* One soft pool of light behind the card, so the page is not a flat slab. */
 .auth-gate::before {
-  content: ''; position: fixed; inset: 0; pointer-events: none;
-  background: repeating-linear-gradient(0deg, rgba(27, 26, 22, .022) 0 1px, transparent 1px 3px);
+  content: ''; position: fixed; left: 50%; top: -22vh; width: 780px; height: 780px;
+  margin-left: -390px; border-radius: 50%; pointer-events: none;
+  background: radial-gradient(circle, rgba(28, 40, 51, .07), transparent 68%);
 }
 
 /* `margin:auto` rather than `align-items:center` — centring a flex item that
    overflows would put its own top out of the scrollbar's reach. */
 .auth-gate-card {
   position: relative; z-index: 1; margin: auto;
-  width: 100%; max-width: 418px;
+  width: 100%; max-width: 396px;
+  background: #ffffff;
+  border: 1px solid #dde3ea;
+  border-radius: 18px;
+  box-shadow: 0 18px 44px -18px rgba(22, 32, 43, .3);
+  overflow: hidden;
   animation: gate-in .45s cubic-bezier(.16, 1, .3, 1);
 }
 @keyframes gate-in {
-  from { opacity: 0; transform: translateY(10px) }
+  from { opacity: 0; transform: translateY(12px) }
   to { opacity: 1; transform: none }
 }
 
-.gate-top { display: flex; align-items: center; justify-content: space-between; padding-bottom: .8rem }
-.auth-gate-logo { width: 40px; height: 40px; display: block }
-.gate-code {
-  font-family: var(--mono); font-size: .64rem; font-weight: 600;
-  letter-spacing: .24em; color: #6d6555;
+/* --- dark masthead ------------------------------------------------------ */
+.gate-head {
+  display: flex; align-items: center; gap: .8rem;
+  padding: 1.15rem 1.3rem;
+  background: linear-gradient(135deg, #1c2833, #2b3a48);
 }
-.gate-rule { border: 0; border-top: 1px solid #1b1a16 }
-
+.auth-gate-logo { width: 44px; height: 44px; display: block; flex-shrink: 0 }
 .auth-gate-card h1 {
-  font-family: Georgia, "Times New Roman", "Noto Serif Thai", serif;
-  font-size: 2.3rem; line-height: 1.12; font-weight: 400; letter-spacing: -.01em;
-  color: #1b1a16; margin: 1.35rem 0 .55rem;
+  font-family: var(--serif);
+  font-size: 1.12rem; font-weight: 400; line-height: 1.25; letter-spacing: .01em;
+  color: #ffffff;
 }
-.auth-gate-card h1 em { font-style: italic; color: #8a6a00 }
-.auth-gate-sub {
-  font-size: .68rem; letter-spacing: .17em; text-transform: uppercase;
-  color: #6d6555; margin-bottom: 1.7rem;
+.auth-gate-card h1 em { font-style: italic; color: #d9b25a }
+.gate-code {
+  font-family: var(--mono); font-size: .56rem; font-weight: 600;
+  letter-spacing: .2em; color: #93a6b8; margin-top: 2px;
 }
 
-/* --- PIN entry --------------------------------------------------------- */
-/* Dots are drawn as rules, not circles — same five elements and the same
-   `.filled` class main.js toggles, just typeset to match the page. */
-.pin-dots { display: flex; gap: 9px; margin-bottom: .55rem }
+/* --- light body --------------------------------------------------------- */
+.gate-body { padding: 1.4rem 1.3rem 1.15rem; text-align: center }
+.auth-gate-sub { font-size: .82rem; color: #55677a }
+
+/* --- PIN entry ---------------------------------------------------------- */
+/* Dots, not rules — the round key is the shape language here, and the filled
+   dot should look like the key that filled it. */
+.pin-dots { display: flex; justify-content: center; gap: 12px; margin: 1rem 0 .5rem }
 .pin-dots span {
-  width: 30px; height: 3px; background: #cdc6b3;
-  transition: background var(--t), transform var(--t);
+  width: 11px; height: 11px; border-radius: 50%;
+  border: 1.5px solid #b7c3d0; background: transparent;
+  transition: background var(--t), border-color var(--t), transform var(--t);
 }
-.pin-dots span.filled { background: #1b1a16; transform: scaleY(1.35) }
+.pin-dots span.filled { background: #1c2833; border-color: #1c2833; transform: scale(1.2) }
 .pin-dots.shake { animation: pin-shake .34s }
 @keyframes pin-shake {
   0%,100% { transform: translateX(0) }
@@ -663,49 +676,47 @@ input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px va
   80% { transform: translateX(4px) }
 }
 
-.pin-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 9px; margin-top: 1.1rem }
+.pin-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 1.1rem }
 .pin-pad button {
-  height: 62px; border: 1px solid #1b1a16; border-radius: 3px;
-  background: transparent; color: #1b1a16;
-  font-family: Georgia, "Times New Roman", serif; font-size: 1.35rem; font-weight: 400;
+  height: 58px; border-radius: 14px;
+  border: 1px solid #dde3ea; background: #f2f5f8; color: #16202b;
+  font-family: var(--mono); font-size: 1.3rem; font-weight: 600;
   cursor: pointer; transition: var(--t);
   display: flex; align-items: center; justify-content: center;
   -webkit-tap-highlight-color: transparent;
 }
-.pin-pad button:hover { background: rgba(27, 26, 22, .06) }
-.pin-pad button:active { background: #1b1a16; color: #f5f1e6 }
-.pin-pad button:focus-visible { outline: 2px solid #8a6a00; outline-offset: 2px }
-.pin-pad .pin-del { border-color: transparent; color: #6d6555 }
-.pin-pad .pin-del:hover { border-color: #cdc6b3; background: transparent; color: #1b1a16 }
-.pin-pad .pin-del svg { width: 20px; height: 20px }
+.pin-pad button:hover { background: #e6ebf1; border-color: #b7c3d0 }
+.pin-pad button:active { background: #1c2833; border-color: #1c2833; color: #ffffff; transform: scale(.95) }
+.pin-pad button:focus-visible { outline: 2px solid #1c2833; outline-offset: 2px }
+.pin-pad .pin-del { background: transparent; border-color: transparent; color: #55677a }
+.pin-pad .pin-del:hover { background: #f2f5f8; border-color: #dde3ea; color: #16202b }
+.pin-pad .pin-del svg { width: 21px; height: 21px }
 /* While the PIN is being checked the pad dims and stops accepting taps, so a
    second submit can't fire against a request already in flight. */
-.pin-pad.busy { opacity: .38; pointer-events: none }
+.pin-pad.busy { opacity: .4; pointer-events: none }
 
 .gate-foot {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-top: 1.1rem; padding-top: .9rem; border-top: 1px solid #cdc6b3;
-  font-size: .68rem; color: #8b8371;
+  display: flex; align-items: center; justify-content: center; gap: .35rem;
+  margin-top: 1.3rem; padding-top: 1rem; border-top: 1px solid #dde3ea;
+  font-size: .68rem; color: #5c6c80;
 }
-.gate-foot span { display: flex; align-items: center; gap: .32rem }
-.gate-foot svg { width: 12px; height: 12px }
+.gate-foot span { display: flex; align-items: center; gap: .35rem }
+.gate-foot svg { width: 13px; height: 13px }
 
-.auth-gate .error-msg { display: block; color: #a3271e; font-size: .74rem; min-height: 1.05em }
+.auth-gate .error-msg { display: block; color: #b0271b; font-size: .74rem; min-height: 1.05em }
 .auth-gate .error-msg.hidden { display: none }
 
 /* Short screens (landscape phone): trim the masthead, keep the keypad usable. */
 @media (max-height: 700px) {
-  .auth-gate-card h1 { font-size: 1.7rem; margin: .9rem 0 .4rem }
-  .auth-gate-sub { margin-bottom: 1rem }
-  .auth-gate-logo { width: 32px; height: 32px }
-  .pin-pad button { height: 50px; font-size: 1.2rem }
-  .pin-pad { gap: 7px; margin-top: .85rem }
-  .gate-foot { margin-top: .8rem; padding-top: .7rem }
+  .gate-head { padding: .8rem 1.1rem }
+  .auth-gate-logo { width: 34px; height: 34px }
+  .auth-gate-card h1 { font-size: .98rem }
+  .gate-body { padding: 1rem 1.1rem .9rem }
+  .pin-dots { margin: .7rem 0 .4rem }
+  .pin-pad button { height: 46px; font-size: 1.15rem; border-radius: 11px }
+  .pin-pad { gap: 8px; margin-top: .8rem }
+  .gate-foot { margin-top: .85rem; padding-top: .7rem }
 }
-/* ============================================================= motion === */
-@keyframes fade { from { opacity: 0 } to { opacity: 1 } }
-@keyframes slideIn { from { opacity: 0; transform: translateX(36px) } to { opacity: 1; transform: translateX(0) } }
-@media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important } }
 
 /* ========================================================== timeline === */
 /* The "รอรับของ" screen. A vertical age scale on the left, the rows beside it.

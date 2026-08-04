@@ -20,37 +20,41 @@
     <!-- LOGIN GATE — shown until Firebase Auth confirms a session. -->
     <div id="auth-gate" class="auth-gate">
       <div class="auth-gate-card">
-        <div class="gate-top">
-          <img src="/logo.svg" alt="Banana Secure Deposit" class="auth-gate-logo" width="40" height="40" />
-          <span class="gate-code">B S D · STAFF</span>
-        </div>
-        <hr class="gate-rule" />
-        <h1>Banana <em>Secure</em><br />Deposit</h1>
-        <p class="auth-gate-sub">ระบบภายในร้าน — เฉพาะพนักงาน</p>
-
-        <div class="pin-dots" id="pin-dots" role="status" aria-label="รหัสผ่าน 5 หลัก">
-          <span></span><span></span><span></span><span></span><span></span>
-        </div>
-        <small id="auth-gate-error" class="error-msg hidden"></small>
-
-        <div class="pin-pad" id="pin-pad">
-          <button type="button" data-key="1">1</button>
-          <button type="button" data-key="2">2</button>
-          <button type="button" data-key="3">3</button>
-          <button type="button" data-key="4">4</button>
-          <button type="button" data-key="5">5</button>
-          <button type="button" data-key="6">6</button>
-          <button type="button" data-key="7">7</button>
-          <button type="button" data-key="8">8</button>
-          <button type="button" data-key="9">9</button>
-          <span></span>
-          <button type="button" data-key="0">0</button>
-          <button type="button" data-key="del" class="pin-del" aria-label="ลบ"><i data-lucide="delete"></i></button>
+        <!-- The card carries the app's own split: dark chrome over light content. -->
+        <div class="gate-head">
+          <img src="/logo.svg" alt="Banana Secure Deposit" class="auth-gate-logo" width="44" height="44" />
+          <div>
+            <h1>Banana <em>Secure</em> Deposit</h1>
+            <p class="gate-code">B S D · STAFF ONLY</p>
+          </div>
         </div>
 
-        <div class="gate-foot">
-          <span>ใส่รหัส 5 หลักเพื่อปลดล็อก</span>
-          <span><i data-lucide="shield-check"></i>ปลอดภัย</span>
+        <div class="gate-body">
+          <p class="auth-gate-sub">ใส่รหัส 5 หลักเพื่อปลดล็อก</p>
+
+          <div class="pin-dots" id="pin-dots" role="status" aria-label="รหัสผ่าน 5 หลัก">
+            <span></span><span></span><span></span><span></span><span></span>
+          </div>
+          <small id="auth-gate-error" class="error-msg hidden"></small>
+
+          <div class="pin-pad" id="pin-pad">
+            <button type="button" data-key="1">1</button>
+            <button type="button" data-key="2">2</button>
+            <button type="button" data-key="3">3</button>
+            <button type="button" data-key="4">4</button>
+            <button type="button" data-key="5">5</button>
+            <button type="button" data-key="6">6</button>
+            <button type="button" data-key="7">7</button>
+            <button type="button" data-key="8">8</button>
+            <button type="button" data-key="9">9</button>
+            <span></span>
+            <button type="button" data-key="0">0</button>
+            <button type="button" data-key="del" class="pin-del" aria-label="ลบ"><i data-lucide="delete"></i></button>
+          </div>
+
+          <div class="gate-foot">
+            <span><i data-lucide="shield-check"></i>ระบบภายในร้าน · เฉพาะพนักงาน</span>
+          </div>
         </div>
       </div>
     </div>
