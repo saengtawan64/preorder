@@ -430,7 +430,34 @@ input:disabled { background: var(--surface-2); color: var(--text-muted); cursor:
   color: var(--gold-deep); font-size: .95rem; font-weight: 600;
 }
 
+/* --- PIN management ----------------------------------------------------- */
+.pin-manage { padding: .9rem 1rem }
+.pin-row {
+  display: grid; grid-template-columns: 70px 1fr auto auto;
+  align-items: center; gap: .8rem;
+  padding: .55rem 0; border-bottom: 1px solid var(--border);
+}
+.pin-row-hint {
+  font-family: var(--mono); font-size: .95rem; font-weight: 600;
+  letter-spacing: .12em; color: var(--text);
+}
+.pin-row-label { font-size: .84rem; font-weight: 500 }
+.pin-row-added { font-family: var(--mono); font-size: .66rem; color: var(--text-muted) }
+.pin-row-actions { display: flex; gap: .3rem }
+.pin-row-actions .btn[disabled] { opacity: .35; cursor: not-allowed }
+
+.pin-add {
+  display: flex; align-items: flex-end; gap: .9rem; flex-wrap: wrap;
+  margin-top: 1.1rem; padding-top: 1rem; border-top: 1px solid var(--rule);
+}
+.pin-add .inst-field input { width: 190px }
+
 @media (max-width: 620px) {
+  .pin-row { grid-template-columns: 62px 1fr; row-gap: .3rem }
+  .pin-row-added { display: none }
+  .pin-row-actions { grid-column: 1 / -1; justify-content: flex-end }
+  .pin-add .inst-field input { width: 100% }
+
   .target-edit-row { grid-template-columns: 74px 1fr }
   .inst-field input { width: 100% }
   .inst-field { flex: 1 1 100% }

@@ -16,6 +16,8 @@ import { persistTheme, resetOnSignOut, state } from './state.js';
 import { fetchSales, fetchTargets, saveTargets, DEFAULT_TARGETS, BRANDS } from './sales.js';
 import { renderSalesDashboard } from './sales-view.js';
 import { renderInstallment, quote, TERMS } from './installment.js';
+import { fetchPins, addPin, removePin, renamePin } from './pins.js';
+import { renderPins } from './pins-view.js';
 import {
   bangkokTimestamp,
   csvCell,
@@ -44,6 +46,8 @@ const el = {
   navSales: document.getElementById('nav-sales'),
   navInstallment: document.getElementById('nav-installment'),
   installmentContainer: document.getElementById('installment-container'),
+  navPins: document.getElementById('nav-pins'),
+  pinsContainer: document.getElementById('pins-container'),
   countPending: document.getElementById('count-pending'),
   countReceived: document.getElementById('count-received'),
   countDeleted: document.getElementById('count-deleted'),
@@ -726,10 +730,111 @@ el.installmentContainer.addEventListener('change', (event) => {
   showInstallment();
 });
 
+/* ------------------------------------------------------- PIN management --- */
+
+const pinsState = { pins: [], loading: false, loaded: false };
+
+function drawPins() {
+  renderPins(el.pinsContainer, pinsState);
+  refreshIcons();
+}
+
+function pinError(message) {
+  const box = el.pinsContainer.querySelector('#pin-error');
+  if (!box) return;
+  box.textContent = message;
+  box.classList.toggle('hidden', !message);
+}
+
+/** Every PIN action ends the same way: apply the fresh list, or show why not. */
+async function pinAction(run) {
+  pinError('');
+  try {
+    const idToken = await getIdToken();
+    if (!idToken) throw new Error('เซสชันหมดอายุ กรุณาเข้าระบบใหม่');
+    const result = await run(idToken);
+    pinsState.pins = result.pins || [];
+    pinsState.loaded = true;
+    return true;
+  } catch (error) {
+    pinError(error.message || 'ทำรายการไม่สำเร็จ');
+    return false;
+  } finally {
+    pinsState.loading = false;
+  }
+}
+
+async function showPins() {
+  el.pinsContainer.classList.remove('hidden');
+  if (!pinsState.loaded) {
+    pinsState.loading = true;
+    drawPins();
+    await pinAction((token) => fetchPins(token));
+  }
+  drawPins();
+}
+
+el.pinsContainer.addEventListener('click', async (event) => {
+  const row = event.target.closest('.pin-row');
+
+  if (event.target.closest('.pin-remove-btn')) {
+    const label = row.querySelector('.pin-row-label').textContent;
+    if (!confirm(`ลบรหัส "${label}" ใช่หรือไม่?\nคนที่ใช้รหัสนี้จะเข้าระบบไม่ได้ทันที`)) return;
+    const index = Number(row.getAttribute('data-index'));
+    const hint = row.getAttribute('data-hint');
+    if (await pinAction((token) => removePin(token, index, hint))) toast('ลบรหัสแล้ว', 'success');
+    drawPins();
+    return;
+  }
+
+  if (event.target.closest('.pin-rename-btn')) {
+    const index = Number(row.getAttribute('data-index'));
+    const current = row.querySelector('.pin-row-label').textContent;
+    const next = prompt('ตั้งชื่อรหัสนี้ (เช่น เจ้าของร้าน, พนักงานหน้าร้าน)', current);
+    if (next === null) return;
+    if (await pinAction((token) => renamePin(token, index, next.trim()))) toast('เปลี่ยนชื่อแล้ว', 'success');
+    drawPins();
+    return;
+  }
+
+  if (!event.target.closest('#pin-add-btn')) return;
+
+  const pinInput = el.pinsContainer.querySelector('#pin-new');
+  const labelInput = el.pinsContainer.querySelector('#pin-new-label');
+  const pin = pinInput.value.trim();
+  if (!/^\d{5}$/.test(pin)) {
+    pinError('รหัสต้องเป็นตัวเลข 5 หลัก');
+    pinInput.focus();
+    return;
+  }
+  if (await pinAction((token) => addPin(token, pin, labelInput.value.trim()))) {
+    toast('เพิ่มรหัสแล้ว ใช้ปลดล็อกได้ทันที', 'success');
+  }
+  drawPins();
+});
+
+/* A PIN is digits only — strip anything else as it is typed rather than
+   rejecting the whole field afterwards. */
+el.pinsContainer.addEventListener('input', (event) => {
+  if (event.target.id !== 'pin-new') return;
+  event.target.value = event.target.value.replace(/\D/g, '').slice(0, 5);
+});
+
 function renderList() {
   renderCounts();
   renderMetrics();
   syncNavButtons();
+
+  if (listMode === 'pins') {
+    el.groupedDatesContainer.classList.add('hidden');
+    el.summaryContainer.classList.add('hidden');
+    el.salesContainer.classList.add('hidden');
+    el.installmentContainer.classList.add('hidden');
+    el.tableEmptyState.classList.add('hidden');
+    showPins();
+    return;
+  }
+  el.pinsContainer.classList.add('hidden');
 
   if (listMode === 'installment') {
     el.groupedDatesContainer.classList.add('hidden');
@@ -842,9 +947,10 @@ function syncNavButtons() {
   el.navSummary.classList.toggle('is-active', listMode === 'summary');
   el.navSales.classList.toggle('is-active', listMode === 'sales');
   el.navInstallment.classList.toggle('is-active', listMode === 'installment');
+  el.navPins.classList.toggle('is-active', listMode === 'pins');
 
   // The deposit search box and KPI tiles belong to the deposit views only.
-  const onSales = listMode === 'sales' || listMode === 'installment';
+  const onSales = listMode === 'sales' || listMode === 'installment' || listMode === 'pins';
   el.depositKpis.classList.toggle('hidden', onSales);
   el.contentTop.classList.toggle('sales-mode', onSales);
   // Searching a month-by-month roll-up doesn't mean anything.
@@ -864,6 +970,7 @@ el.navDeleted.addEventListener('click', () => setListMode('deleted'));
 el.navSummary.addEventListener('click', () => setListMode('summary'));
 el.navSales.addEventListener('click', () => setListMode('sales'));
 el.navInstallment.addEventListener('click', () => setListMode('installment'));
+el.navPins.addEventListener('click', () => setListMode('pins'));
 el.sidebarToggle.addEventListener('click', () => el.sidebar.classList.toggle('open'));
 
 /* --------------------------------------------------- add-deposit drawer --- */

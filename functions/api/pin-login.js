@@ -20,6 +20,7 @@
 import { createFirebaseCustomToken } from '../_lib/google-auth.js';
 import { getAccessToken } from '../_lib/google-auth.js';
 import { getDocFields, setDocFields } from '../_lib/firestore-doc.js';
+import { readEntries, entriesToFields } from '../_lib/pins-store.js';
 
 const MAX_ATTEMPTS = 8;
 const LOCKOUT_MS = 15 * 60 * 1000;
@@ -46,8 +47,8 @@ function equals(a, b) {
  */
 async function loadPins(projectId, token, env) {
   const doc = await getDocFields(projectId, token, 'settings/pins');
-  const stored = Array.isArray(doc?.pins) ? doc.pins.filter(Boolean).map(String) : [];
-  if (stored.length > 0) return stored;
+  const stored = readEntries(doc);
+  if (stored.length > 0) return stored.map((entry) => entry.pin);
 
   const seed = String(env.STAFF_PINS || '')
     .split(',')
@@ -55,10 +56,13 @@ async function loadPins(projectId, token, env) {
     .filter((p) => /^\d{4,8}$/.test(p));
   if (seed.length === 0) return [];
 
-  await setDocFields(projectId, token, 'settings/pins', {
-    pins: seed,
-    seededAtIso: new Date().toISOString(),
-  });
+  const now = new Date().toISOString();
+  await setDocFields(
+    projectId,
+    token,
+    'settings/pins',
+    entriesToFields(seed.map((pin, i) => ({ pin, label: `รหัสที่ ${i + 1}`, addedAtIso: now }))),
+  );
   return seed;
 }
 
