@@ -18,6 +18,8 @@ import { renderSalesDashboard } from './sales-view.js';
 import { renderInstallment, quote, TERMS } from './installment.js';
 import { fetchPins, addPin, removePin, renamePin } from './pins.js';
 import { renderPins } from './pins-view.js';
+import { agingSummary, agingTone, daysHeld } from './aging.js';
+import { buildMessage, markFollowedUp } from './follow-up.js';
 import {
   bangkokTimestamp,
   csvCell,
@@ -27,6 +29,8 @@ import {
   formatBaht,
   formatPhone,
   isValidPhone,
+  phoneDigits,
+  thaiDateShort,
   todayDatePart,
 } from './utils.js';
 
@@ -85,6 +89,9 @@ const el = {
   metricTotalAmount: document.getElementById('metric-total-amount'),
   metricTotalCount: document.getElementById('metric-total-count'),
   metricTodayAmount: document.getElementById('metric-today-amount'),
+  metricAgingCard: document.getElementById('metric-aging-card'),
+  metricAgingAmount: document.getElementById('metric-aging-amount'),
+  metricAgingSub: document.getElementById('metric-aging-sub'),
 
   toastContainer: document.getElementById('toast-container'),
 };
@@ -380,6 +387,16 @@ function renderMetrics() {
   const today = todayDatePart();
   const todayRecords = active.filter((record) => datePart(record.timestamp) === today);
   el.metricTodayAmount.innerText = formatBaht(sumAmounts(todayRecords));
+
+  // Money tied up in deposits nobody has collected. The card only goes red
+  // when there is actually something to chase — a permanently red tile stops
+  // being read after a week.
+  const aging = agingSummary(active);
+  el.metricAgingAmount.innerText = formatBaht(aging.amount);
+  el.metricAgingSub.innerText = aging.count
+    ? `${aging.count} ราย · เก่าสุด ${aging.oldest} วัน`
+    : 'ไม่มีรายการค้าง';
+  el.metricAgingCard.classList.toggle('is-alert', aging.count > 0);
 }
 
 function renderDateGroup(date, records) {
@@ -388,18 +405,45 @@ function renderDateGroup(date, records) {
   const rows = records
     .map((record) => {
       const bucket = bucketOf(record);
+      const phone = formatPhone(record.phoneNumber);
+      const digits = phoneDigits(record.phoneNumber);
+
+      // Age and follow-up only mean anything while the shop is still holding
+      // the goods — a collected or cancelled deposit is settled.
+      const days = bucket === 'pending' ? daysHeld(record) : null;
+      const ageTag = days === null ? ''
+        : `<span class="age-tag age-${agingTone(days) || 'ok'}">ค้าง ${days} วัน</span>`;
+      const followed = bucket === 'pending' ? thaiDateShort(record.followedUpAtIso) : '';
+      const followTag = followed
+        ? `<small class="row-sub">แจ้งแล้ว ${followed}${record.followUpCount > 1 ? ` · ${record.followUpCount} ครั้ง` : ''}</small>`
+        : '';
+
       // data-label feeds the stacked card layout on narrow screens, where the
       // table header is hidden and each cell has to name itself.
       return `
       <tr class="row-${bucket}">
-        <td class="name-cell" data-label="ชื่อจริง"><strong>${escapeHtml(record.firstName)}</strong></td>
+        <td class="name-cell" data-label="ชื่อจริง"><strong>${escapeHtml(record.firstName)}</strong>${followTag}</td>
         <td data-label="ชื่อเล่น">${escapeHtml(record.nickname)}</td>
-        <td data-label="เบอร์โทร"><span class="phone-tag">${escapeHtml(formatPhone(record.phoneNumber))}</span></td>
+        <td data-label="เบอร์โทร">${
+          digits
+            ? `<a class="phone-tag" href="tel:${escapeHtml(digits)}" title="กดเพื่อโทร">${escapeHtml(phone)}</a>`
+            : `<span class="phone-tag">${escapeHtml(phone)}</span>`
+        }</td>
         <td class="product-cell" data-label="สินค้า">${escapeHtml(record.depositItem)}</td>
         <td class="amount-cell mono" data-label="ยอดมัดจำ">${formatBaht(record.depositAmount)}</td>
-        <td class="text-center no-strike" data-label="สถานะ">${CHIP[bucket]}</td>
+        <td class="text-center no-strike" data-label="สถานะ">
+          <span class="cell-stack">${CHIP[bucket]}${ageTag}</span>
+        </td>
         <td class="no-strike actions-cell" data-label="จัดการ">
           <div class="action-btns">
+            ${
+              bucket === 'pending'
+                ? `<button class="btn btn-xs btn-outline notify-btn"
+                    data-id="${escapeHtml(record.id)}" title="คัดลอกข้อความแจ้งลูกค้า + บันทึกว่าติดตามแล้ว">
+              <i data-lucide="send"></i>
+            </button>`
+                : ''
+            }
             ${
               bucket === 'pending'
                 ? `<button class="btn btn-xs btn-success mark-received-btn"
@@ -878,8 +922,14 @@ function renderList() {
     return;
   }
 
+  // "รอรับของ" is a to-do list, so the oldest deposit — the one most at risk of
+  // never being collected — comes first. The settled views stay newest-first,
+  // where the question is "what happened lately" rather than "what needs doing".
+  const groups = groupByDate(visible);
+  if (listMode === 'pending') groups.reverse();
+
   el.tableEmptyState.classList.add('hidden');
-  el.groupedDatesContainer.innerHTML = groupByDate(visible)
+  el.groupedDatesContainer.innerHTML = groups
     .map(([date, records]) => renderDateGroup(date, records))
     .join('');
 
@@ -896,6 +946,34 @@ el.groupedDatesContainer.addEventListener('click', async (event) => {
       toast(`คัดลอก "${info}" แล้ว!`, 'success');
     } catch {
       toast('คัดลอกไม่สำเร็จ (เบราว์เซอร์ไม่อนุญาต)', 'warning');
+    }
+    return;
+  }
+
+  const notifyBtn = event.target.closest('.notify-btn');
+  if (notifyBtn) {
+    const record = state.deposits.find((r) => r.id === notifyBtn.getAttribute('data-id'));
+    if (!record) return;
+
+    // Copy first. If the clipboard is blocked there is nothing to send, so
+    // stamping "แจ้งแล้ว" would be a lie.
+    try {
+      await navigator.clipboard.writeText(buildMessage(record));
+    } catch {
+      toast('คัดลอกไม่สำเร็จ (เบราว์เซอร์ไม่อนุญาต)', 'warning');
+      return;
+    }
+
+    toast('คัดลอกข้อความแล้ว — วางใน LINE หรือ SMS ได้เลย', 'success');
+    try {
+      const idToken = await getIdToken();
+      if (!idToken) throw new Error('เซสชันหมดอายุ');
+      await markFollowedUp(idToken, record.id);
+      // The snapshot listener redraws the row with the new "แจ้งแล้ว" stamp.
+    } catch (error) {
+      // The message is already on the clipboard, so this is a bookkeeping
+      // failure, not a failed action — say so without undoing anything.
+      toast(`ข้อความคัดลอกแล้ว แต่บันทึกการติดตามไม่สำเร็จ: ${error.message}`, 'warning');
     }
     return;
   }

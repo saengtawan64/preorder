@@ -213,6 +213,11 @@ h1, h2, h3, h4 { font-family: var(--serif); font-weight: 400; letter-spacing: -.
   font-size: 1.12rem; font-weight: 600; line-height: 1.35;
 }
 .kpi-gold .kpi-value { color: var(--gold-deep) }
+/* The aging tile is grey until there is something to chase — a tile that is
+   always red stops being read within a week. */
+.kpi-aging { border-left-color: var(--border-strong) }
+.kpi-aging.is-alert { border-left-color: var(--rose) }
+.kpi-aging.is-alert .kpi-value, .kpi-aging.is-alert .kpi-sub { color: var(--rose-deep) }
 
 /* ------------------------------------------------------- date groups ---- */
 #grouped-dates-container { display: flex; flex-direction: column; gap: 11px }
@@ -295,6 +300,25 @@ tr.row-deleted td.no-strike { text-decoration: none }
 .chip-pending { color: var(--amber-deep) }
 .chip-received { color: var(--mint-deep) }
 .chip-deleted { color: var(--rose-deep) }
+
+/* Age of an unclaimed deposit, under its status chip. Deliberately quieter
+   than the chip until it crosses a threshold — most rows are young, and a
+   list where everything shouts says nothing. */
+.cell-stack { display: inline-flex; flex-direction: column; align-items: center; gap: .25rem }
+.age-tag {
+  font-family: var(--mono); font-size: .62rem; font-weight: 600;
+  letter-spacing: .04em; white-space: nowrap; color: var(--text-muted);
+}
+.age-warn { color: var(--amber-deep) }
+.age-danger { color: var(--rose-deep); font-weight: 700 }
+
+/* "แจ้งแล้ว 2/8/2569" under the customer's name. */
+.row-sub {
+  display: block; font-size: .64rem; font-weight: 400;
+  color: var(--text-muted); margin-top: .1rem;
+}
+a.phone-tag { text-decoration: none; display: inline-block }
+a.phone-tag:hover { border-color: var(--rule); color: var(--text) }
 
 .action-btns { display: flex; justify-content: flex-end; gap: .25rem }
 /* A double rule above the total: the printer's way of closing a column. */
@@ -714,8 +738,12 @@ input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px va
   /* Cells with nothing to label (the spacer in the summary footer) collapse. */
   .data-table td[data-label=""] { display: none }
 
-  .name-cell { padding-left: 1.4rem !important }
+  .name-cell { padding-left: 1.4rem !important; flex-wrap: wrap }
   .name-cell::before { position: static; width: auto; height: auto; background: none; border-radius: 0; content: attr(data-label) }
+  /* The card layout turns each cell into a flex row, so the follow-up note
+     needs a full-width line of its own rather than sitting beside the name. */
+  .name-cell .row-sub { flex: 1 0 100%; text-align: right }
+  .cell-stack { align-items: flex-end }
   .data-table tbody tr { position: relative }
   .data-table tbody tr::before {
     content: ""; position: absolute; left: 0; top: .5rem; bottom: .5rem;

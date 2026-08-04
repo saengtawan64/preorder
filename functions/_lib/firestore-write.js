@@ -88,6 +88,51 @@ export async function updateDepositFromWeb(projectId, token, payload) {
 }
 
 /**
+ * Note that a customer was contacted about their deposit.
+ *
+ * Touches only the two follow-up fields, so it can never disturb the record
+ * itself — and neither writer that owns the record touches them back:
+ * `upsertDepositFromSheet` and `updateDepositFromWeb` both write through an
+ * updateMask that doesn't list them, so a Sheet edit or a web edit leaves the
+ * follow-up history intact.
+ *
+ * Deliberately not mirrored to the Google Sheet. The sheet's column layout is
+ * load-bearing — the sync worker writes fixed ranges and a shifted column is
+ * what caused the duplicate-row bugs — so a web-only field stays web-only.
+ *
+ * Returns { updated: false } when the deposit doesn't exist.
+ */
+export async function recordFollowUp(projectId, token, depositId) {
+  const path = `projects/${projectId}/databases/(default)/documents/deposits/${encodeURIComponent(depositId)}`;
+  const existing = await getDeposit(projectId, token, depositId);
+  if (!existing) return { updated: false };
+
+  const previous = Number(existing.fields?.followUpCount?.doubleValue ?? 0);
+  const followedUpAtIso = new Date().toISOString();
+  const followUpCount = (Number.isFinite(previous) ? previous : 0) + 1;
+
+  const query = ['followedUpAtIso', 'followUpCount']
+    .map((f) => `updateMask.fieldPaths=${encodeURIComponent(f)}`)
+    .join('&');
+
+  const response = await firestoreFetch(`${path}?${query}`, token, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      fields: {
+        followedUpAtIso: toFirestoreValue(followedUpAtIso),
+        followUpCount: toFirestoreValue(followUpCount),
+      },
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Firestore follow-up write failed: ${response.status} ${await response.text()}`);
+  }
+
+  return { updated: true, followedUpAtIso, followUpCount };
+}
+
+/**
  * Upsert a deposit coming from a Sheet edit.
  *
  * Business fields (name, phone, item, amount, timestamp, deleted) always

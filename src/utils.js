@@ -73,6 +73,30 @@ export function bangkokTimestamp(date = new Date()) {
 }
 
 /**
+ * An ISO stamp as a Thai calendar date, e.g. "4/8/2569". Returns '' for
+ * anything unparseable, so callers can just skip the label.
+ *
+ * Used for the machine-written stamps (`createdAtIso`, `followedUpAtIso`),
+ * which are UTC ISO strings — unlike `timestamp`, which is already a display
+ * string in this format and only needs `datePart()`.
+ */
+export function thaiDateShort(iso) {
+  if (!iso) return '';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '';
+
+  const parts = new Intl.DateTimeFormat('en-GB', {
+    timeZone: 'Asia/Bangkok',
+    day: 'numeric',
+    month: 'numeric',
+    year: 'numeric',
+  }).formatToParts(date);
+
+  const get = (type) => parts.find((part) => part.type === type)?.value ?? '';
+  return `${Number(get('day'))}/${Number(get('month'))}/${Number(get('year')) + 543}`;
+}
+
+/**
  * The date half of a timestamp produced by bangkokTimestamp(), e.g. "30/7/2569".
  * Records grouped by this string are grouped by calendar day.
  */
