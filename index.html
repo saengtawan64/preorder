@@ -148,6 +148,18 @@
           <p>ไม่พบข้อมูลรายการมัดจำ</p>
         </div>
       </main>
+
+      <!-- Phone-only. The three views staff switch between all day, under the
+           thumb; "อื่นๆ" opens the drawer for everything else. -->
+      <nav class="tabbar" id="tabbar">
+        <button data-tab="pending" class="is-active">
+          <i data-lucide="clock"></i><span>รอรับของ</span><em id="tab-count-pending" class="hidden">0</em>
+        </button>
+        <button data-tab="received"><i data-lucide="check-check"></i><span>รับแล้ว</span></button>
+        <button data-tab="add"><i data-lucide="plus-circle"></i><span>เพิ่ม</span></button>
+        <button data-tab="sales"><i data-lucide="chart-column"></i><span>ยอดขาย</span></button>
+        <button data-tab="more"><i data-lucide="menu"></i><span>อื่นๆ</span></button>
+      </nav>
     </div>
 
     <!-- ADD DEPOSIT — slide-over -->

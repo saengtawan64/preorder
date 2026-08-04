@@ -1,109 +1,124 @@
 /* ============================================================= tokens === */
-/* Style: editorial — cream paper, ink rules, a serif masthead and mono figures.
-   The whole app speaks the language of the login page: nothing floats on a
-   shadow, everything is separated by a hairline, and the only ornament is the
-   rule itself. Cards are sheets, the sidebar is the gutter, tables are set
-   like a printed ledger.
+/* Style: light workspace, dark rail, heat scale.
+   The workspace is a cool near-white so it stays readable in daylight at the
+   counter; the rail stays dark in BOTH themes, which is what makes the app
+   read as chrome-plus-content rather than one flat surface.
 
    Three type roles, and they do not overlap:
      --serif  headings and titles only
      --mono   every figure, plus micro-labels and running heads
      --font   body copy and controls (Thai reads best here)
 
-   Ink (--rule) is the interactive accent: active nav, primary button, a
-   pressed key. Gold is reserved for MONEY and chart fills — it is the brand,
-   not a state. Status keeps the amber / green / red of the Google Sheet, so a
-   row reads the same in both places. */
+   Two accent systems, kept apart on purpose:
+     --rule   ink. The neutral interactive accent — active nav, primary button.
+     heat     --mint / --amber / --rose, in that order, mean AGE: fresh, ageing,
+              overdue. They are also the sheet's three status colours, so a row
+              reads the same in both places. Never use heat for decoration.
+   Gold is neither: it is the brand, used only for money figures and the logo.
+
+   Every foreground/background pair below clears WCAG AA (4.5:1) on both the
+   page and a card — checked, not assumed. Amber is the tightest; do not
+   lighten it. */
 :root {
-  --rule: #1b1a16;          /* full-strength ink hairline */
-  --rail: #eee8d7;          /* the gutter: one shade deeper than the page */
-  --rail-2: rgba(27, 26, 22, .07);
-  --rail-text: #6d6555;
-  --rail-text-strong: #1b1a16;
+  --rule: #1c2833;          /* ink: the rail colour, doubling as the accent */
+  --rail: #1c2833;
+  --rail-2: rgba(255, 255, 255, .08);
+  /* Dividers inside the rail have to be drawn in light-on-dark. --border is a
+     page colour and would glare here; --rule is the rail itself and would
+     vanish. */
+  --rail-line: rgba(255, 255, 255, .11);
+  --rail-text: #93a6b8;
+  --rail-text-strong: #ffffff;
 
   --gold: #8a6a00;
-  --gold-ink: #f7f3e8;
-  --gold-soft: rgba(138, 106, 0, .12);
+  --gold-ink: #ffffff;
+  --gold-soft: rgba(138, 106, 0, .1);
   --gold-deep: #7a5e00;
 
-  --mint: #4f7a52;
-  --mint-ink: #f7f3e8;
-  --mint-soft: rgba(79, 122, 82, .13);
-  --mint-deep: #3d6340;
+  /* heat: fresh → ageing → overdue */
+  --mint: #0f7a4d;
+  --mint-ink: #ffffff;
+  --mint-soft: rgba(15, 122, 77, .1);
+  --mint-deep: #0f7a4d;
 
-  --amber: #a97b1c;
-  --amber-soft: rgba(169, 123, 28, .13);
-  --amber-deep: #86601a;
-  --blue: #4a6b8a;
-  --rose: #a3392c;
-  --rose-soft: rgba(163, 57, 44, .12);
-  --rose-deep: #8c2f24;
+  --amber: #a85f09;
+  --amber-soft: rgba(168, 95, 9, .1);
+  --amber-deep: #a85f09;
+  --blue: #2f6fb0;
+  --rose: #b0271b;
+  --rose-ink: #ffffff;      /* readable ON --rose — flips in the dark theme */
+  --rose-soft: rgba(176, 39, 27, .09);
+  --rose-deep: #b0271b;
 
-  --bg: #f5f1e6;
-  --surface: #fcfaf3;
-  --surface-2: #eee8d7;
-  --border: #ded7c4;
-  --border-strong: #b8b09b;
-  --text: #1b1a16;
-  --text-secondary: #6d6555;
-  /* Not lighter than this: muted carries the column heads and the mobile row
-     labels, so it has to clear 4.5:1 on both the page and a card. */
-  --text-muted: #736b59;
+  --bg: #eef1f5;
+  --surface: #ffffff;
+  --surface-2: #eaeef3;
+  --border: #dde3ea;
+  --border-strong: #b7c3d0;
+  --text: #16202b;
+  --text-secondary: #55677a;
+  /* Not lighter than this: muted carries the column heads and the tick labels,
+     and has to clear 4.5:1 on the page background too, not just on a card. */
+  --text-muted: #5c6c80;
 
-  --btn: #1b1a16;
-  --btn-hover: #35322a;
-  --btn-text: #f5f1e6;
+  --btn: #1c2833;
+  --btn-hover: #2b3a48;
+  --btn-text: #ffffff;
 
-  --r-sm: 2px;
-  --r: 3px;
-  --r-lg: 4px;
-  --r-full: 2px;            /* print has no pills — tags are square */
-  --shadow-sm: none;
-  --shadow-md: 0 4px 18px rgba(27, 26, 22, .12);
-  --shadow-drawer: -8px 0 32px rgba(27, 26, 22, .16);
+  --r-sm: 7px;
+  --r: 10px;
+  --r-lg: 13px;
+  --r-full: 9999px;
+  --shadow-sm: 0 1px 3px rgba(22, 32, 43, .07);
+  --shadow-md: 0 8px 26px rgba(22, 32, 43, .14);
+  --shadow-drawer: -10px 0 36px rgba(22, 32, 43, .2);
 
   --font: "Prompt", -apple-system, BlinkMacSystemFont, sans-serif;
   --serif: Georgia, "Times New Roman", "Noto Serif Thai", serif;
   --mono: "IBM Plex Mono", Consolas, ui-monospace, monospace;
   --t: .18s cubic-bezier(.4, 0, .2, 1);
 }
-/* Night edition — the same paper printed dark. Warm greys throughout, never
-   blue, so it reads as ink on board rather than as a generic dark UI. */
+/* Night shift. The rail does not change — only the workspace inverts, so the
+   two halves keep the same relationship to each other in both themes. */
 [data-theme=dark] {
-  --rule: #6b6350;
-  --rail: #131109;
-  --rail-2: rgba(237, 231, 214, .08);
-  --rail-text: #a49b83;
-  --rail-text-strong: #f2ecdb;
+  --rule: #4d647a;
+  --rail: #131c24;
+  --rail-2: rgba(255, 255, 255, .07);
+  --rail-line: rgba(255, 255, 255, .09);
+  --rail-text: #8298ab;
+  --rail-text-strong: #ffffff;
 
-  --bg: #17150f;
-  --surface: #1f1c14;
-  --surface-2: #262218;
-  --border: #3a3426;
-  --border-strong: #56503c;
-  --text: #ede7d6;
-  --text-secondary: #a49b83;
-  --text-muted: #938b76;
+  --bg: #101820;
+  --surface: #17222c;
+  --surface-2: #1d2a35;
+  --border: #2a3a48;
+  --border-strong: #3f5566;
+  --text: #e6edf3;
+  --text-secondary: #9db0c1;
+  --text-muted: #8ba0b2;
 
   --gold: #d9b25a;
-  --gold-ink: #17150f;
-  --gold-soft: rgba(217, 178, 90, .15);
-  --gold-deep: #e2c076;
+  --gold-ink: #101820;
+  --gold-soft: rgba(217, 178, 90, .14);
+  --gold-deep: #e0bd6f;
 
-  --mint: #7fae82;
-  --mint-soft: rgba(127, 174, 130, .16);
-  --mint-deep: #96c199;
-  --amber-soft: rgba(217, 178, 90, .16);
-  --amber-deep: #d9b25a;
-  --rose: #d97b6c;
-  --rose-soft: rgba(217, 123, 108, .16);
-  --rose-deep: #e59486;
+  --mint: #3fb37c;
+  --mint-soft: rgba(63, 179, 124, .15);
+  --mint-deep: #5cc796;
+  --amber: #dc9438;
+  --amber-soft: rgba(220, 148, 56, .15);
+  --amber-deep: #e8a755;
+  --rose: #e0685c;
+  --rose-ink: #17222c;      /* the dark theme's red is light — ink goes dark on it */
+  --rose-soft: rgba(224, 104, 92, .15);
+  --rose-deep: #ec8074;
 
-  --btn: #ede7d6;
-  --btn-hover: #fffaea;
-  --btn-text: #17150f;
+  --btn: #e6edf3;
+  --btn-hover: #ffffff;
+  --btn-text: #101820;
 
-  --shadow-md: 0 8px 24px rgba(0, 0, 0, .5);
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, .4);
+  --shadow-md: 0 8px 26px rgba(0, 0, 0, .5);
   --shadow-drawer: -10px 0 40px rgba(0, 0, 0, .65);
 }
 
@@ -131,14 +146,13 @@ h1, h2, h3, h4 { font-family: var(--serif); font-weight: 400; letter-spacing: -.
 
 .sidebar {
   background: var(--rail);
-  border-right: 1px solid var(--rule);
   padding: 14px 10px;
   display: flex; flex-direction: column;
   position: sticky; top: 0; height: 100vh;
 }
 .side-brand {
   display: flex; align-items: center; gap: 9px; padding: 0 4px 12px;
-  margin-bottom: 12px; border-bottom: 1px solid var(--rule);
+  margin-bottom: 12px; border-bottom: 1px solid var(--rail-line);
 }
 .side-logo { width: 30px; height: 30px; flex-shrink: 0; display: block }
 .side-name {
@@ -150,7 +164,7 @@ h1, h2, h3, h4 { font-family: var(--serif); font-weight: 400; letter-spacing: -.
   letter-spacing: .14em; text-transform: uppercase; color: var(--gold-deep); margin-top: 2px;
 }
 .side-nav { display: flex; flex-direction: column; gap: 1px }
-.side-foot { margin-top: auto; display: flex; flex-direction: column; gap: 1px; padding-top: 12px; border-top: 1px solid var(--border) }
+.side-foot { margin-top: auto; display: flex; flex-direction: column; gap: 1px; padding-top: 12px; border-top: 1px solid var(--rail-line) }
 
 .nav-item {
   display: flex; align-items: center; gap: 9px;
@@ -161,8 +175,8 @@ h1, h2, h3, h4 { font-family: var(--serif); font-weight: 400; letter-spacing: -.
   cursor: pointer; text-align: left; transition: var(--t);
 }
 .nav-item:hover { background: var(--rail-2); color: var(--rail-text-strong) }
-/* Solid ink, the same mark a pressed key makes on the login page. */
-.nav-item.is-active { background: var(--rule); color: var(--rail); font-weight: 500 }
+/* Inverted: the rail is already ink, so the selected item is the light one. */
+.nav-item.is-active { background: var(--rail-text-strong); color: var(--rail); font-weight: 600 }
 .nav-item.nav-danger:hover { background: var(--rose-soft); color: var(--rose-deep) }
 .nav-count {
   margin-left: auto; font-family: var(--mono); font-style: normal;
@@ -170,7 +184,7 @@ h1, h2, h3, h4 { font-family: var(--serif); font-weight: 400; letter-spacing: -.
   padding: 1px 5px; border-radius: var(--r-sm);
   background: var(--rail-2); color: var(--rail-text);
 }
-.nav-item.is-active .nav-count { background: rgba(245, 241, 230, .2); color: var(--rail) }
+.nav-item.is-active .nav-count { background: rgba(28, 40, 51, .12); color: var(--rail) }
 
 /* ============================================================ content === */
 .content { padding: 16px 20px 32px; min-width: 0 }
@@ -693,7 +707,137 @@ input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px va
 @keyframes slideIn { from { opacity: 0; transform: translateX(36px) } to { opacity: 1; transform: translateX(0) } }
 @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important } }
 
+/* ========================================================== timeline === */
+/* The "รอรับของ" screen. A vertical age scale on the left, the rows beside it.
+   Both are driven by the same percentage, so a dot and its row's bar always
+   agree — that agreement is the only reason the rail is worth the space. */
+.tl { display: grid; grid-template-columns: 232px 1fr; gap: 16px; align-items: start }
+.tl-rail {
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); box-shadow: var(--shadow-sm);
+  padding: 14px; position: sticky; top: 14px;
+}
+.tl-rail-head h3 { font-family: var(--serif); font-size: 1.05rem; font-weight: 400 }
+.tl-rail-head p { font-size: .72rem; color: var(--text-secondary); margin-bottom: 12px }
+
+.tl-scale { position: relative; height: 430px }
+.tl-gradient {
+  position: absolute; left: 2px; top: 0; bottom: 0; width: 8px; border-radius: 5px;
+  background: linear-gradient(180deg, var(--mint), var(--amber) 52%, var(--rose));
+}
+/* A slow pass down the scale — the one moving thing on the screen, there to
+   say "this is a live reading" rather than to decorate. */
+.tl-scan {
+  position: absolute; left: 0; right: 4px; height: 2px; border-radius: 2px;
+  background: linear-gradient(90deg, var(--rose), transparent);
+  animation: tl-scan 5s linear infinite; opacity: .7;
+}
+@keyframes tl-scan { 0% { top: 0; opacity: 0 } 12% { opacity: .7 } 88% { opacity: .7 } 100% { top: 100%; opacity: 0 } }
+
+.tl-tick {
+  position: absolute; left: 18px; transform: translateY(-50%);
+  font-family: var(--mono); font-size: .58rem; color: var(--text-muted); white-space: nowrap;
+}
+.tl-node { position: absolute; left: 42px; transform: translateY(-50%); display: flex; align-items: center; gap: 6px }
+.tl-node i { width: 9px; height: 9px; border-radius: 50%; flex-shrink: 0 }
+.tl-node b { font-size: .66rem; font-weight: 500; color: var(--text); white-space: nowrap }
+.tl-node.tone-ok i { background: var(--mint) }
+.tl-node.tone-warn i { background: var(--amber) }
+.tl-node.tone-danger i { background: var(--rose); animation: tl-ping 2.4s ease-out infinite }
+@keyframes tl-ping {
+  0%, 100% { box-shadow: 0 0 0 0 var(--rose-soft) }
+  55% { box-shadow: 0 0 0 7px transparent }
+}
+
+.tl-summary { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-bottom: 12px }
+.tl-stat {
+  background: var(--surface); border: 1px solid var(--border); border-radius: var(--r);
+  box-shadow: var(--shadow-sm); padding: 10px 13px; display: flex; flex-direction: column;
+}
+.tl-stat .kpi-value { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: 1.15rem; font-weight: 700 }
+.tl-stat.is-alert { background: var(--rose-soft); border-color: var(--rose) }
+.tl-stat.is-alert .kpi-value, .tl-stat.is-alert .kpi-sub { color: var(--rose-deep) }
+
+/* The horizontal twin of the rail, for phone widths. */
+.tl-strip { display: none; margin-bottom: 12px }
+.tl-strip-bar {
+  position: relative; height: 12px; border-radius: 7px;
+  background: linear-gradient(90deg, var(--mint), var(--amber) 52%, var(--rose));
+}
+.tl-strip-bar i {
+  position: absolute; top: -4px; width: 4px; height: 20px; border-radius: 3px;
+  background: var(--surface); box-shadow: 0 0 0 2px var(--text); transform: translateX(-2px);
+}
+.tl-strip-ticks { display: flex; justify-content: space-between; font-family: var(--mono); font-size: .58rem; color: var(--text-muted); margin-top: 3px }
+
+.tl-rows { display: flex; flex-direction: column; gap: 8px }
+.tl-row {
+  display: grid; grid-template-columns: 1fr 110px 62px 92px 118px auto;
+  align-items: center; gap: 12px;
+  background: var(--surface); border: 1px solid var(--border);
+  border-left: 3px solid var(--border-strong);
+  border-radius: var(--r); box-shadow: var(--shadow-sm);
+  padding: 10px 14px; position: relative;
+  animation: tl-rise .34s cubic-bezier(.16, 1, .3, 1) backwards;
+}
+.tl-rows .tl-row:nth-child(2) { animation-delay: .04s }
+.tl-rows .tl-row:nth-child(3) { animation-delay: .08s }
+.tl-rows .tl-row:nth-child(4) { animation-delay: .12s }
+.tl-rows .tl-row:nth-child(5) { animation-delay: .16s }
+.tl-rows .tl-row:nth-child(n+6) { animation-delay: .2s }
+@keyframes tl-rise { from { opacity: 0; transform: translateY(8px) } to { opacity: 1; transform: none } }
+
+.tl-row.tone-ok { border-left-color: var(--mint) }
+.tl-row.tone-warn { border-left-color: var(--amber) }
+.tl-row.tone-danger { border-left-color: var(--rose) }
+
+.tl-name { font-size: .88rem; font-weight: 600 }
+.tl-name small { font-weight: 400; color: var(--text-secondary) }
+.tl-item { font-size: .74rem; color: var(--text-secondary); margin-top: 1px }
+.tl-followed { font-size: .64rem; color: var(--text-muted); margin-top: 2px }
+
+.tl-track { height: 6px; border-radius: 4px; background: var(--surface-2); overflow: hidden }
+.tl-track span { display: block; height: 100%; border-radius: 4px; animation: tl-fill .6s cubic-bezier(.16, 1, .3, 1) }
+@keyframes tl-fill { from { width: 0 } }
+.tone-ok .tl-track span { background: var(--mint) }
+.tone-warn .tl-track span { background: var(--amber) }
+.tone-danger .tl-track span { background: var(--rose) }
+
+.tl-age { font-family: var(--mono); font-variant-numeric: tabular-nums; font-size: .74rem; font-weight: 700; text-align: right }
+.tone-ok .tl-age { color: var(--mint-deep) }
+.tone-warn .tl-age { color: var(--amber-deep) }
+.tone-danger .tl-age { color: var(--rose-deep) }
+.tl-amount { font-size: .88rem; font-weight: 700; text-align: right }
+.tl-contact { text-align: right }
+.tl-actions { display: flex; gap: .25rem; justify-content: flex-end }
+
+/* Only the overdue rows get a filled button — if every row shouted, none would. */
+.btn-urgent { background: var(--rose); color: var(--rose-ink); border-color: var(--rose) }
+.btn-urgent:hover { filter: brightness(1.08) }
+
+/* ---------------------------------------------------------- skeleton ---- */
+.sk {
+  background: linear-gradient(90deg, var(--surface-2) 25%, var(--surface) 37%, var(--surface-2) 63%);
+  background-size: 400% 100%; animation: sk-shimmer 1.5s ease infinite; border-radius: var(--r-sm);
+}
+@keyframes sk-shimmer { from { background-position: 100% 50% } to { background-position: 0 50% } }
+.sk-line { height: 15px; margin-bottom: 8px }
+.sk-line.sk-sm { height: 10px }
+.sk-scale { height: 430px; border-radius: var(--r) }
+.sk-stat { height: 66px; border-radius: var(--r) }
+.sk-row { height: 62px; border-radius: var(--r) }
+
 /* ============================================================ responsive = */
+@media (max-width: 980px) {
+  /* Below this the rail is wider than the value it adds — the same scale lies
+     flat above the rows instead, still showing where the deposits pile up. */
+  .tl { grid-template-columns: 1fr }
+  .tl-rail { display: none }
+  .tl-strip { display: block }
+  .tl-row { grid-template-columns: 1fr 90px 56px 84px auto; }
+  .tl-contact { display: none }
+}
+
 @media (max-width: 820px) {
   .shell { grid-template-columns: 1fr }
   .sidebar {
@@ -756,4 +900,52 @@ input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px va
   .actions-cell { justify-content: flex-end }
   .actions-cell::before { display: none }
   .action-btns .btn-xs { padding: .4rem .6rem }
+}
+
+/* ------------------------------------------------- timeline on a phone --- */
+@media (max-width: 620px) {
+  /* Two lines instead of six columns: who + what, then the numbers and the
+     buttons. Everything stays visible — nothing hides behind a sideways scroll. */
+  .tl-row {
+    grid-template-columns: 1fr auto;
+    grid-template-areas: "who age" "track track" "amount actions";
+    row-gap: 9px; padding: 12px 14px;
+  }
+  .tl-who { grid-area: who } .tl-age { grid-area: age; font-size: .8rem }
+  .tl-track { grid-area: track } .tl-amount { grid-area: amount; text-align: left; font-size: 1rem }
+  .tl-actions { grid-area: actions }
+  .tl-actions .btn-xs { padding: .45rem .62rem }
+  .tl-summary { grid-template-columns: 1fr 1fr; gap: 8px }
+  .tl-summary .tl-stat:first-child { grid-column: span 2 }
+}
+
+/* ------------------------------------------------------- mobile tab bar --- */
+/* The rail is a drawer on a phone, which puts the three views staff switch
+   between all day behind a tap-and-aim. The tab bar puts them under the thumb;
+   "อื่นๆ" still opens the drawer for everything else. */
+.tabbar { display: none }
+@media (max-width: 820px) {
+  .tabbar {
+    display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 700;
+    background: var(--surface); border-top: 1px solid var(--border);
+    padding-bottom: env(safe-area-inset-bottom, 0);
+    box-shadow: 0 -4px 18px rgba(22, 32, 43, .08);
+  }
+  .tabbar button {
+    flex: 1; border: 0; background: none; cursor: pointer;
+    font-family: var(--font); font-size: .6rem; color: var(--text-muted);
+    padding: 9px 2px 10px; display: flex; flex-direction: column; align-items: center; gap: 3px;
+    -webkit-tap-highlight-color: transparent;
+  }
+  .tabbar button i { display: flex } .tabbar button svg { width: 19px; height: 19px }
+  .tabbar button.is-active { color: var(--rail-text-strong) }
+  .tabbar button.is-active svg { color: var(--rose) }
+  .tabbar em {
+    position: absolute; top: 4px; margin-left: 20px; font-style: normal;
+    font-family: var(--mono); font-size: .56rem; font-weight: 700;
+    background: var(--rose); color: var(--rose-ink); border-radius: 9px; padding: 0 5px;
+  }
+  /* Room for the bar, so the last row is never trapped underneath it. */
+  .content { padding-bottom: 84px }
+  .toast-container { bottom: 5.5rem }
 }

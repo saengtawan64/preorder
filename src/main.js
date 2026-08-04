@@ -19,6 +19,8 @@ import { renderInstallment, quote, TERMS } from './installment.js';
 import { fetchPins, addPin, removePin, renamePin } from './pins.js';
 import { renderPins } from './pins-view.js';
 import { agingSummary, agingTone, daysHeld } from './aging.js';
+import { timelineModel } from './timeline.js';
+import { renderTimeline, renderTimelineSkeleton } from './timeline-view.js';
 import { buildMessage, markFollowedUp } from './follow-up.js';
 import {
   bangkokTimestamp,
@@ -89,6 +91,8 @@ const el = {
   metricTotalAmount: document.getElementById('metric-total-amount'),
   metricTotalCount: document.getElementById('metric-total-count'),
   metricTodayAmount: document.getElementById('metric-today-amount'),
+  tabbar: document.getElementById('tabbar'),
+  tabCountPending: document.getElementById('tab-count-pending'),
   metricAgingCard: document.getElementById('metric-aging-card'),
   metricAgingAmount: document.getElementById('metric-aging-amount'),
   metricAgingSub: document.getElementById('metric-aging-sub'),
@@ -170,10 +174,17 @@ function setConnectionStatus(text, variant = 'ok') {
   refreshIcons();
 }
 
+/* False until the first Firestore snapshot lands. Until then an empty list is
+   "not known yet", not "nothing here" — showing the empty state in that gap
+   tells staff their deposits are gone. */
+let depositsLoaded = false;
+
 function startDepositsFeed() {
   if (unsubscribeDeposits) return;
+  renderTimelineSkeleton(el.groupedDatesContainer);
   unsubscribeDeposits = subscribeDeposits((records) => {
     state.deposits = records;
+    depositsLoaded = true;
     setConnectionStatus('เชื่อมต่อสด', 'ok');
     renderList();
   });
@@ -184,6 +195,7 @@ function stopDepositsFeed() {
     unsubscribeDeposits();
     unsubscribeDeposits = null;
   }
+  depositsLoaded = false;
   resetOnSignOut();
 }
 
@@ -917,21 +929,29 @@ function renderList() {
   const visible = needle ? base.filter((r) => matchesQuery(r, needle, needleDigits)) : base;
 
   if (visible.length === 0) {
+    // Nothing to show yet is not the same as nothing to show.
+    if (!depositsLoaded && !needle) {
+      renderTimelineSkeleton(el.groupedDatesContainer);
+      el.tableEmptyState.classList.add('hidden');
+      return;
+    }
     el.groupedDatesContainer.innerHTML = '';
     el.tableEmptyState.classList.remove('hidden');
     return;
   }
 
-  // "รอรับของ" is a to-do list, so the oldest deposit — the one most at risk of
-  // never being collected — comes first. The settled views stay newest-first,
-  // where the question is "what happened lately" rather than "what needs doing".
-  const groups = groupByDate(visible);
-  if (listMode === 'pending') groups.reverse();
-
   el.tableEmptyState.classList.add('hidden');
-  el.groupedDatesContainer.innerHTML = groups
-    .map(([date, records]) => renderDateGroup(date, records))
-    .join('');
+
+  // "รอรับของ" is the timeline: the question there is how long the shop has
+  // been holding each deposit. The settled views stay a date-grouped table,
+  // where age means nothing and "what happened lately" is what you want.
+  if (listMode === 'pending') {
+    renderTimeline(el.groupedDatesContainer, timelineModel(visible));
+  } else {
+    el.groupedDatesContainer.innerHTML = groupByDate(visible)
+      .map(([date, records]) => renderDateGroup(date, records))
+      .join('');
+  }
 
   refreshIcons();
 }
@@ -1026,6 +1046,7 @@ function syncNavButtons() {
   el.navSales.classList.toggle('is-active', listMode === 'sales');
   el.navInstallment.classList.toggle('is-active', listMode === 'installment');
   el.navPins.classList.toggle('is-active', listMode === 'pins');
+  syncTabbar();
 
   // The deposit search box and KPI tiles belong to the deposit views only.
   const onSales = listMode === 'sales' || listMode === 'installment' || listMode === 'pins';
@@ -1049,6 +1070,31 @@ el.navSummary.addEventListener('click', () => setListMode('summary'));
 el.navSales.addEventListener('click', () => setListMode('sales'));
 el.navInstallment.addEventListener('click', () => setListMode('installment'));
 el.navPins.addEventListener('click', () => setListMode('pins'));
+
+/* ------------------------------------------------------- mobile tab bar --- */
+/* Two of the five tabs are not views: "เพิ่ม" opens the add drawer and "อื่นๆ"
+   opens the rail, so everything the sidebar offers is still one tap away. */
+el.tabbar.addEventListener('click', (event) => {
+  const button = event.target.closest('button[data-tab]');
+  if (!button) return;
+
+  const tab = button.getAttribute('data-tab');
+  if (tab === 'add') return openDrawer();
+  if (tab === 'more') return el.sidebar.classList.toggle('open');
+  setListMode(tab);
+});
+
+function syncTabbar() {
+  for (const button of el.tabbar.querySelectorAll('button[data-tab]')) {
+    const tab = button.getAttribute('data-tab');
+    button.classList.toggle('is-active', tab === listMode);
+  }
+  // The badge is the only number on the bar, so it only earns its place when
+  // there is something overdue to act on.
+  const overdue = agingSummary(state.deposits.filter((r) => bucketOf(r) === 'pending')).count;
+  el.tabCountPending.textContent = String(overdue);
+  el.tabCountPending.classList.toggle('hidden', overdue === 0);
+}
 el.sidebarToggle.addEventListener('click', () => el.sidebar.classList.toggle('open'));
 
 /* --------------------------------------------------- add-deposit drawer --- */
