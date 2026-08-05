@@ -24,6 +24,7 @@ import { renderTimeline, renderTimelineSkeleton } from './timeline-view.js';
 import { summarizeHistory, historyMessage } from './customer-history.js';
 import { buildMessage, markFollowedUp } from './follow-up.js';
 import {
+  animateNumber,
   bangkokTimestamp,
   csvCell,
   dateSortKey,
@@ -33,6 +34,7 @@ import {
   formatPhone,
   isValidPhone,
   phoneDigits,
+  prefersReducedMotion,
   thaiDateShort,
   todayDatePart,
 } from './utils.js';
@@ -395,18 +397,18 @@ function renderMetrics() {
   // Metrics describe money currently held: pending only, never deleted.
   const active = state.deposits.filter((record) => bucketOf(record) === 'pending');
 
-  el.metricTotalAmount.innerText = formatBaht(sumAmounts(active));
-  el.metricTotalCount.innerText = String(active.length);
+  animateNumber(el.metricTotalAmount, sumAmounts(active), formatBaht);
+  animateNumber(el.metricTotalCount, active.length, (n) => String(n));
 
   const today = todayDatePart();
   const todayRecords = active.filter((record) => datePart(record.timestamp) === today);
-  el.metricTodayAmount.innerText = formatBaht(sumAmounts(todayRecords));
+  animateNumber(el.metricTodayAmount, sumAmounts(todayRecords), formatBaht);
 
   // Money tied up in deposits nobody has collected. The card only goes red
   // when there is actually something to chase — a permanently red tile stops
   // being read after a week.
   const aging = agingSummary(active);
-  el.metricAgingAmount.innerText = formatBaht(aging.amount);
+  animateNumber(el.metricAgingAmount, aging.amount, formatBaht);
   el.metricAgingSub.innerText = aging.count
     ? `${aging.count} ราย · เก่าสุด ${aging.oldest} วัน`
     : 'ไม่มีรายการค้าง';
@@ -1061,11 +1063,30 @@ function syncNavButtons() {
   el.searchInput.disabled = listMode === 'summary';
 }
 
+/**
+ * Cross-fade into a fresh renderList() using the View Transitions API where
+ * the browser has it, falling back to a plain instant call everywhere else —
+ * a progressive enhancement, not a requirement, so there is nothing to break
+ * on a browser without it.
+ *
+ * Deliberately only wrapped around a deliberate mode switch (below), not
+ * around the snapshot listener's own renderList() call: that one fires on
+ * every Firestore update, and cross-fading the whole screen every time a
+ * deposit changes would read as the page flickering, not as motion.
+ */
+function withViewTransition(update) {
+  if (typeof document.startViewTransition !== 'function' || prefersReducedMotion()) {
+    update();
+    return;
+  }
+  document.startViewTransition(update);
+}
+
 function setListMode(mode) {
   el.sidebar.classList.remove('open'); // closes the mobile drawer after a pick
   if (listMode === mode) return;
   listMode = mode;
-  renderList();
+  withViewTransition(renderList);
 }
 
 el.navPending.addEventListener('click', () => setListMode('pending'));

@@ -43,6 +43,52 @@ export function formatBaht(value) {
   return '฿' + Number(value || 0).toLocaleString('th-TH');
 }
 
+/** True when the user has told the OS they don't want motion. */
+export function prefersReducedMotion() {
+  return matchMedia('(prefers-reduced-motion: reduce)').matches;
+}
+
+const lastAnimatedValue = new WeakMap();
+
+/**
+ * Count an element's text up or down to `value`, formatting every
+ * intermediate frame with `format`. This is the KPI-tile version of the
+ * mono/tabular-nums rule elsewhere in the app: a figure that visibly moves
+ * reads as "this number just changed", which a silent text swap doesn't.
+ *
+ * Two cases jump straight to the final text instead of animating: the very
+ * first call for an element (there is no "from" value yet to count up from,
+ * so animating in from 0 would misreport the true starting balance), and a
+ * call where the value hasn't actually changed (renderMetrics runs on every
+ * Firestore snapshot and every tab switch, not just when a number moves —
+ * animating every one of those would read as a glitch, not as life).
+ * Reduced-motion skips it too, same as everywhere else in the app.
+ */
+export function animateNumber(el, value, format, duration = 500) {
+  const to = Number(value) || 0;
+  const from = lastAnimatedValue.get(el);
+  lastAnimatedValue.set(el, to);
+
+  if (from === undefined || from === to || prefersReducedMotion()) {
+    el.textContent = format(to);
+    return;
+  }
+
+  const start = performance.now();
+  const step = (now) => {
+    // Bail if a newer animation has since claimed this element (e.g. two
+    // renders landed within one animation's lifetime) — finishing the stale
+    // one would fight the new one for the last-drawn frame.
+    if (lastAnimatedValue.get(el) !== to) return;
+
+    const t = Math.min((now - start) / duration, 1);
+    const eased = 1 - (1 - t) ** 3; // ease-out cubic
+    el.textContent = format(Math.round(from + (to - from) * eased));
+    if (t < 1) requestAnimationFrame(step);
+  };
+  requestAnimationFrame(step);
+}
+
 /**
  * Current wall-clock timestamp in Bangkok, e.g. "1/8/2569 02:21".
  *
