@@ -133,17 +133,84 @@ export async function recordFollowUp(projectId, token, depositId) {
 }
 
 /**
+ * Mark a deposit received (customer collected the goods), on behalf of a
+ * signed-in staff user clicking the button in the web app.
+ *
+ * This has to run server-side even though a client-only status flip is what
+ * `firestore.rules` already allows: that rule's status branch is an exact
+ * field allowlist (`hasOnly(['status', 'updatedAtIso'])`), so a client write
+ * that also set `receivedAtIso` in the same update would be rejected outright.
+ * Capturing the timestamp therefore goes through here, past the service
+ * account, the same way the follow-up write does.
+ *
+ * `receivedAtIso` is only set when the record wasn't already received —
+ * idempotent against a duplicate click racing the snapshot listener, and it
+ * mirrors the rule `upsertDepositFromSheet` uses for the same transition, so
+ * a deposit marked received from the web or from the Sheet looks the same
+ * afterward regardless of which side did it.
+ *
+ * Returns { updated: false } when the deposit doesn't exist.
+ */
+export async function markReceivedFromWeb(projectId, token, depositId) {
+  const path = `projects/${projectId}/databases/(default)/documents/deposits/${encodeURIComponent(depositId)}`;
+  const existing = await getDeposit(projectId, token, depositId);
+  if (!existing) return { updated: false };
+
+  const alreadyReceived = existing.fields?.status?.stringValue === 'received';
+  const nowIso = new Date().toISOString();
+
+  const fields = { status: 'received', updatedAtIso: nowIso };
+  const maskFields = ['status', 'updatedAtIso'];
+  if (!alreadyReceived) {
+    fields.receivedAtIso = nowIso;
+    maskFields.push('receivedAtIso');
+  }
+
+  const firestoreFields = {};
+  for (const [key, value] of Object.entries(fields)) firestoreFields[key] = toFirestoreValue(value);
+
+  const query = maskFields.map((f) => `updateMask.fieldPaths=${encodeURIComponent(f)}`).join('&');
+  const response = await firestoreFetch(`${path}?${query}`, token, {
+    method: 'PATCH',
+    body: JSON.stringify({ fields: firestoreFields }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Firestore mark-received write failed: ${response.status} ${await response.text()}`);
+  }
+
+  return {
+    updated: true,
+    receivedAtIso: fields.receivedAtIso ?? existing.fields?.receivedAtIso?.stringValue ?? null,
+  };
+}
+
+/**
  * Upsert a deposit coming from a Sheet edit.
  *
  * Business fields (name, phone, item, amount, timestamp, deleted) always
  * overwrite — that is the point of two-way sync. `createdAtIso`/`createdAt`
  * are only set on first creation and never touched on an update, so editing
  * a row in the Sheet can't rewrite when the record was originally made.
+ *
+ * `receivedAtIso` follows the status transition, not the status value: it is
+ * stamped the moment `status` moves TO 'received' and cleared the moment it
+ * moves AWAY from it, so the field always means "when this deposit most
+ * recently became received" rather than a first-ever timestamp that could go
+ * stale if a row is reopened and marked received again. Every other edit to
+ * an already-received row (fixing a typo, say) leaves it untouched, because
+ * the field is only added to the write when a transition actually happened.
+ * The Sheet is the shop's primary data-entry surface — staff toggling the
+ * status dropdown there has to produce the same timestamp as clicking the
+ * button on the web, or the field would silently under-count.
  */
 export async function upsertDepositFromSheet(projectId, token, payload) {
   const path = `projects/${projectId}/databases/(default)/documents/deposits/${encodeURIComponent(payload.depositId)}`;
   const nowIso = new Date().toISOString();
   const existing = await getDeposit(projectId, token, payload.depositId);
+
+  const prevStatus = existing?.fields?.status?.stringValue ?? 'pending';
+  const nextStatus = payload.status === 'received' ? 'received' : 'pending';
 
   const businessFields = {
     depositId: payload.depositId,
@@ -154,7 +221,7 @@ export async function upsertDepositFromSheet(projectId, token, payload) {
     depositAmount: payload.depositAmount,
     timestamp: payload.timestamp,
     // Fulfilment status from the sheet's dropdown (defaults to pending).
-    status: payload.status === 'received' ? 'received' : 'pending',
+    status: nextStatus,
     deletedAt: payload.deleted ? nowIso : null,
     updatedAtIso: nowIso,
     source: 'sheet',
@@ -162,6 +229,14 @@ export async function upsertDepositFromSheet(projectId, token, payload) {
 
   const maskFields = Object.keys(businessFields);
   const fields = { ...businessFields };
+
+  if (nextStatus === 'received' && prevStatus !== 'received') {
+    fields.receivedAtIso = nowIso;
+    maskFields.push('receivedAtIso');
+  } else if (nextStatus !== 'received' && prevStatus === 'received') {
+    fields.receivedAtIso = null;
+    maskFields.push('receivedAtIso');
+  }
 
   if (!existing) {
     // Brand-new row typed directly into the Sheet — this is its creation.

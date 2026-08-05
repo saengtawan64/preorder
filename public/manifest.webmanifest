@@ -1,0 +1,17 @@
+{
+  "name": "BSD · ระบบหลังร้าน บานาน่า",
+  "short_name": "BSD",
+  "description": "ระบบภายในสำหรับพนักงาน — มัดจำสินค้าและแดชบอร์ดยอดขาย",
+  "id": "/",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "lang": "th",
+  "dir": "ltr",
+  "background_color": "#eef1f5",
+  "theme_color": "#1c2833",
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}

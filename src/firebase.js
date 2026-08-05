@@ -124,30 +124,6 @@ export async function softDeleteDeposit(id) {
 }
 
 /**
- * Mark a deposit as received (customer collected the goods).
- *
- * Same shape as softDeleteDeposit — a minimal field update the security rules
- * allow — but it flips `status` to 'received' instead of soft-deleting. The
- * record then drops out of the active dashboard and shows in the history view;
- * the sync worker moves its row to the "รับของแล้ว" archive tab.
- */
-export async function markReceivedDeposit(id) {
-  if (!db) return false;
-  if (typeof id !== 'string' || id === '') return false;
-
-  try {
-    await updateDoc(doc(db, COLLECTION, id), {
-      status: 'received',
-      updatedAtIso: new Date().toISOString(),
-    });
-    return true;
-  } catch (error) {
-    console.error('Error marking document received in Firestore:', error);
-    return false;
-  }
-}
-
-/**
  * Subscribe to the deposits collection, newest first.
  *
  * Every record is passed through, soft-deleted ones included — the UI has a

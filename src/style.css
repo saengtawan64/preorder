@@ -556,6 +556,20 @@ input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px va
 .input-hint { font-size: .7rem; color: var(--text-muted) }
 .error-msg { color: var(--rose); font-size: .78rem; margin-top: .25rem; display: block }
 
+/* Returning-customer note under the phone field. Two tones only: a clean
+   history is reassurance (mint), anything needing a second look — an
+   abandoned deposit, one still open — is a flag (amber). Neither is an error,
+   so neither borrows --rose. */
+.customer-note {
+  display: flex; align-items: center; gap: .35rem;
+  font-size: .72rem; font-weight: 500;
+  margin-top: .35rem; padding: .35rem .55rem;
+  border-radius: var(--r-sm); border: 1px solid transparent;
+}
+.customer-note svg { width: 13px; height: 13px; flex-shrink: 0 }
+.customer-note.tone-ok { background: var(--mint-soft); border-color: var(--mint); color: var(--mint-deep) }
+.customer-note.tone-warn { background: var(--amber-soft); border-color: var(--amber); color: var(--amber-deep) }
+
 /* ============================================================= drawer === */
 .drawer-overlay { position: fixed; inset: 0; background: rgba(22, 32, 43, .45); z-index: 900; animation: fade .18s ease-out }
 .drawer {

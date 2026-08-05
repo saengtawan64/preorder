@@ -8,10 +8,10 @@ import { onAuthChange, signInWithPin, signOutUser, getIdToken } from './auth.js'
 import {
   initFirebase,
   softDeleteDeposit,
-  markReceivedDeposit,
   subscribeDeposits,
   addDeposit,
 } from './firebase.js';
+import { markReceived } from './received.js';
 import { persistTheme, resetOnSignOut, state } from './state.js';
 import { fetchSales, fetchTargets, saveTargets, DEFAULT_TARGETS, BRANDS } from './sales.js';
 import { renderSalesDashboard } from './sales-view.js';
@@ -21,6 +21,7 @@ import { renderPins } from './pins-view.js';
 import { agingSummary, agingTone, daysHeld } from './aging.js';
 import { timelineModel } from './timeline.js';
 import { renderTimeline, renderTimelineSkeleton } from './timeline-view.js';
+import { summarizeHistory, historyMessage } from './customer-history.js';
 import { buildMessage, markFollowedUp } from './follow-up.js';
 import {
   bangkokTimestamp,
@@ -74,6 +75,7 @@ const el = {
   firstNameInput: document.getElementById('first-name'),
   nicknameInput: document.getElementById('nickname'),
   phoneNumberInput: document.getElementById('phone-number'),
+  customerHistoryNote: document.getElementById('customer-history-note'),
   depositItemInput: document.getElementById('deposit-item'),
   depositAmountInput: document.getElementById('deposit-amount'),
   submitBtn: document.getElementById('submit-btn'),
@@ -1010,9 +1012,12 @@ el.groupedDatesContainer.addEventListener('click', async (event) => {
   if (receivedBtn) {
     const id = receivedBtn.getAttribute('data-id');
     if (!confirm('ยืนยันว่าลูกค้ารับสินค้าแล้ว?')) return;
-    const ok = await markReceivedDeposit(id);
-    if (!ok) {
-      toast('บันทึกไม่สำเร็จ', 'danger');
+    try {
+      const idToken = await getIdToken();
+      if (!idToken) throw new Error('เซสชันหมดอายุ กรุณาเข้าระบบใหม่');
+      await markReceived(idToken, id);
+    } catch (error) {
+      toast(error.message || 'บันทึกไม่สำเร็จ', 'danger');
       return;
     }
     toast('บันทึก "รับสินค้าแล้ว" เรียบร้อย', 'success');
@@ -1102,6 +1107,29 @@ el.sidebarToggle.addEventListener('click', () => el.sidebar.classList.toggle('op
 // null = the drawer is adding a new deposit; a document id = editing that one.
 let editingId = null;
 
+/**
+ * Look up the phone field's current number against every deposit already
+ * loaded and show or hide the returning-customer note accordingly.
+ *
+ * `state.deposits` is the whole collection, not just pending — history has to
+ * include received and abandoned deposits or it would miss the one thing
+ * worth flagging (a customer who has walked away from a deposit before).
+ */
+function refreshCustomerHistoryNote() {
+  const summary = summarizeHistory(state.deposits, el.phoneNumberInput.value, editingId);
+  const message = historyMessage(summary);
+
+  if (!message) {
+    el.customerHistoryNote.classList.add('hidden');
+    el.customerHistoryNote.textContent = '';
+    return;
+  }
+
+  el.customerHistoryNote.className = `customer-note tone-${message.tone}`;
+  el.customerHistoryNote.innerHTML = `<i data-lucide="${message.tone === 'warn' ? 'alert-triangle' : 'check-circle'}"></i>${escapeHtml(message.text)}`;
+  refreshIcons();
+}
+
 function openDrawer(record = null) {
   editingId = record ? record.id : null;
 
@@ -1119,6 +1147,7 @@ function openDrawer(record = null) {
   el.drawerIcon.setAttribute('data-lucide', record ? 'pencil' : 'plus-circle');
   el.submitBtn.querySelector('span').innerText = record ? 'บันทึกการแก้ไข' : 'บันทึกรายการมัดจำ';
   refreshIcons();
+  refreshCustomerHistoryNote();
 
   el.addPanel.classList.add('open');
   el.addPanel.setAttribute('aria-hidden', 'false');
@@ -1135,6 +1164,7 @@ function closeAddDrawer() {
   el.addPanel.classList.remove('open');
   el.addPanel.setAttribute('aria-hidden', 'true');
   el.addOverlay.classList.add('hidden');
+  el.customerHistoryNote.classList.add('hidden');
 }
 
 el.addOpenBtn.addEventListener('click', openAddDrawer);
@@ -1151,6 +1181,7 @@ document.addEventListener('keydown', (event) => {
 
 el.phoneNumberInput.addEventListener('input', (event) => {
   event.target.value = formatPhone(event.target.value);
+  refreshCustomerHistoryNote();
 });
 
 /**

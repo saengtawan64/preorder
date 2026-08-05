@@ -8,6 +8,20 @@
   <meta name="robots" content="noindex, nofollow" />
   <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
 
+  <!-- Installable to a home screen icon. No service worker on purpose — this
+       app is nothing without a live connection to Firestore, so there is no
+       offline mode worth caching for, and a mis-written service worker is
+       the one PWA mistake that can lock a phone onto a stale build with no
+       easy way back. The manifest alone is enough for "Add to Home Screen"
+       to open full-screen on both Android and iOS. -->
+  <link rel="manifest" href="/manifest.webmanifest" />
+  <meta name="theme-color" content="#1c2833" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="BSD" />
+  <link rel="apple-touch-icon" href="/favicon.svg" />
+
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
@@ -197,6 +211,7 @@
                 <input type="tel" id="phone-number" name="phoneNumber" placeholder="08X-XXX-XXXX" maxlength="12" required />
               </div>
               <small class="input-hint">เบอร์โทรศัพท์ 10 หลัก</small>
+              <p id="customer-history-note" class="customer-note hidden"></p>
             </div>
 
             <div class="form-group full-width">
