@@ -104,15 +104,9 @@
           <button class="nav-item" id="nav-installment" data-mode="installment">
             <i data-lucide="calculator"></i><span>คำนวณผ่อน</span>
           </button>
-
-          <span class="side-section">ตั้งค่า</span>
-          <button class="nav-item" id="nav-pins" data-mode="pins">
-            <i data-lucide="key-round"></i><span>จัดการรหัส</span>
-          </button>
         </nav>
 
         <div class="side-foot">
-          <button class="nav-item" id="export-csv-btn"><i data-lucide="download"></i><span>ส่งออก CSV</span></button>
           <button class="nav-item" id="theme-toggle-btn"><i data-lucide="sun" id="theme-icon"></i><span id="theme-label">ธีมมืด</span></button>
           <button class="nav-item nav-danger" id="logout-btn"><i data-lucide="log-out"></i><span>ออกจากระบบ</span></button>
         </div>
@@ -164,7 +158,6 @@
         <div id="summary-container" class="hidden"></div>
         <div id="sales-container" class="hidden"></div>
         <div id="installment-container" class="hidden"></div>
-        <div id="pins-container" class="hidden"></div>
 
         <div id="table-empty-state" class="empty-state hidden">
           <i data-lucide="inbox"></i>
@@ -242,26 +235,6 @@
         </form>
       </div>
     </aside>
-
-    <!-- ADMIN STEP-UP — re-enter an admin PIN before a sensitive action
-         (PIN management, sales targets, CSV export, deleting a deposit).
-         Required every time, even on an already-signed-in session — the
-         shop's login is one shared account, so being signed in doesn't say
-         who is actually at the till right now. -->
-    <div id="admin-gate-overlay" class="drawer-overlay hidden"></div>
-    <div id="admin-gate" class="admin-gate hidden" role="dialog" aria-modal="true" aria-labelledby="admin-gate-title">
-      <div class="admin-gate-card">
-        <h3 id="admin-gate-title"><i data-lucide="shield-alert"></i> ยืนยันสิทธิ์แอดมิน</h3>
-        <p id="admin-gate-reason" class="text-muted"></p>
-        <input type="text" id="admin-gate-pin" inputmode="numeric" autocomplete="off"
-          maxlength="8" placeholder="รหัสแอดมิน" />
-        <small id="admin-gate-error" class="error-msg hidden"></small>
-        <div class="admin-gate-actions">
-          <button type="button" class="btn btn-outline" id="admin-gate-cancel">ยกเลิก</button>
-          <button type="button" class="btn btn-primary" id="admin-gate-submit">ยืนยัน</button>
-        </div>
-      </div>
-    </div>
 
     <div id="toast-container" class="toast-container"></div>
   </div>

@@ -136,9 +136,6 @@ function row(node) {
         <button class="btn btn-xs btn-outline edit-deposit-btn" data-id="${id}" title="แก้ไขรายการ">
           <i data-lucide="pencil"></i>
         </button>
-        <button class="btn btn-xs btn-danger btn-outline delete-deposit-btn" data-id="${id}" title="ลบรายการ">
-          <i data-lucide="trash-2"></i>
-        </button>
       </div>
     </div>`;
 }

@@ -118,42 +118,16 @@ function renderBrandBars(month, prevMonth, mode) {
     </div>`;
 }
 
-function renderTargets(month, groupKey, targets, editing) {
+/**
+ * Read-only — setting targets is now exclusively an admin-portal action (see
+ * the separate bsd-admin-portal app). This dashboard only ever displays them.
+ */
+function renderTargets(month, groupKey, targets) {
   const group = BRAND_GROUPS[groupKey] || BRAND_GROUPS.all;
   const target = group.brands.reduce((sum, key) => sum + (targets[key] || 0), 0);
   const actual = group.brands.reduce((sum, key) => sum + month.brands[key].amount, 0);
   const pct = target > 0 ? Math.min((actual / target) * 100, 100) : 0;
   const shortfall = Math.max(target - actual, 0);
-
-  // Editing shows every brand, not just the current group — a target belongs to
-  // the shop, not to whichever group happens to be on screen.
-  if (editing) {
-    const inputs = BRANDS.map(({ key }) => `
-      <div class="target-edit-row">
-        <label for="target-${key}">${escapeHtml(key)}</label>
-        <input type="number" id="target-${key}" data-brand="${key}"
-               value="${targets[key] ?? 0}" min="0" step="1000" inputmode="numeric" />
-      </div>`).join('');
-
-    return `
-      <div class="date-group-block">
-        <div class="date-group-header">
-          <div class="date-title"><i data-lucide="target"></i> แก้ไขเป้ายอดขายรายเดือน</div>
-          <span class="kpi-sub">หน่วยเป็นบาท · ใช้ร่วมกันทั้งร้าน</span>
-        </div>
-        <div class="target-edit">
-          ${inputs}
-          <div class="target-edit-total">
-            รวมทุกแบรนด์ <strong class="mono" id="target-edit-total">${baht(Object.values(targets).reduce((a, b) => a + b, 0))}</strong>
-          </div>
-          <div class="target-edit-actions">
-            <button id="targets-cancel" class="btn btn-outline btn-sm">ยกเลิก</button>
-            <button id="targets-save" class="btn btn-primary btn-sm"><i data-lucide="save"></i> บันทึกเป้า</button>
-          </div>
-          <p id="targets-msg" class="error-msg hidden"></p>
-        </div>
-      </div>`;
-  }
 
   const perBrand = group.brands.map((key) => {
     const brandTarget = targets[key] || 0;
@@ -178,7 +152,6 @@ function renderTargets(month, groupKey, targets, editing) {
             ${Object.entries(BRAND_GROUPS).map(([k, g]) =>
               `<option value="${k}"${k === groupKey ? ' selected' : ''}>${escapeHtml(g.label)}</option>`).join('')}
           </select>
-          <button id="targets-edit" class="btn btn-outline btn-sm"><i data-lucide="pencil"></i> แก้เป้า</button>
         </div>
       </div>
       <div class="target-summary">
@@ -196,7 +169,7 @@ function renderTargets(month, groupKey, targets, editing) {
 }
 
 /** Render the whole dashboard into `container`. */
-export function renderSalesDashboard(container, { months, monthIndex, mode, groupKey, updatedAt, targets, editingTargets }) {
+export function renderSalesDashboard(container, { months, monthIndex, mode, groupKey, updatedAt, targets }) {
   const month = months[monthIndex];
   const prevMonth = monthIndex > 0 ? months[monthIndex - 1] : null;
 
@@ -215,6 +188,6 @@ export function renderSalesDashboard(container, { months, monthIndex, mode, grou
     </div>
     ${renderKpis(month, prevMonth, mode, targets)}
     ${renderBrandBars(month, prevMonth, mode)}
-    ${renderTargets(month, groupKey, targets, editingTargets)}
-    <p class="sales-note"><i data-lucide="lock"></i> ยอดขายอ่านอย่างเดียว — แดชบอร์ดนี้ไม่เขียนอะไรกลับไปที่ชีต (เป้าเก็บแยกในระบบ)</p>`;
+    ${renderTargets(month, groupKey, targets)}
+    <p class="sales-note"><i data-lucide="lock"></i> ยอดขายอ่านอย่างเดียว — แดชบอร์ดนี้ไม่เขียนอะไรกลับไปที่ชีต (แก้เป้าได้ที่ระบบแอดมินเท่านั้น)</p>`;
 }

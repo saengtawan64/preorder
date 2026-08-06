@@ -1,9 +1,7 @@
 /**
- * Shared PIN rate-limiting, used by both /api/pin-login (unlock) and
- * /api/verify-admin-pin (step-up re-auth for admin actions). A 5-digit PIN is
- * only 100k combinations, so both surfaces that accept a guessed PIN need the
- * same lockout, keyed by caller IP, or an attacker just uses whichever
- * endpoint isn't limited.
+ * PIN rate-limiting for /api/pin-login. A 5-digit PIN is only 100k
+ * combinations, so guesses are lockout-limited per caller IP or a script
+ * could walk the whole space in minutes.
  */
 
 const MAX_ATTEMPTS = 8;

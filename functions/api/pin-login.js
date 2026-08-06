@@ -29,9 +29,8 @@ const UID = 'shop-staff'; // one shared identity, same as the old single account
 /**
  * The PIN entries, from Firestore. Seeded once from the STAFF_PINS secret so
  * the PINs are never in this repo (which is public) — after that Firestore is
- * the source of truth and PINs can be changed without a redeploy. Seeded PINs
- * default to the 'admin' role (see pins-store.js) so the first login after
- * deploy is never accidentally locked out of anything.
+ * the source of truth and PINs can be changed without a redeploy (from the
+ * separate admin portal — see bsd-admin-cbb7f2/functions/api/pins.js).
  */
 async function loadPins(projectId, token, env) {
   const doc = await getDocFields(projectId, token, 'settings/pins');
@@ -45,7 +44,7 @@ async function loadPins(projectId, token, env) {
   if (seed.length === 0) return [];
 
   const now = new Date().toISOString();
-  const entries = seed.map((pin, i) => ({ pin, label: `รหัสที่ ${i + 1}`, addedAtIso: now, role: 'admin' }));
+  const entries = seed.map((pin, i) => ({ pin, label: `รหัสที่ ${i + 1}`, addedAtIso: now }));
   await setDocFields(projectId, token, 'settings/pins', entriesToFields(entries));
   return entries;
 }
@@ -105,11 +104,6 @@ export async function onRequestPost({ request, env }) {
 
     if (record) await setDocFields(projectId, token, path, clearedFields);
 
-    // matched.role isn't embedded in the session token — the shop's login is
-    // one shared account (UID below), so a claim on it would only describe
-    // which PIN unlocked it once, not who's at the till from then on. Actual
-    // admin gating is a fresh step-up on each sensitive action instead; see
-    // functions/api/verify-admin-pin.js.
     const customToken = await createFirebaseCustomToken(serviceAccount, UID);
     return Response.json({ ok: true, token: customToken });
   } catch (error) {
