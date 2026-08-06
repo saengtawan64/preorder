@@ -117,7 +117,10 @@ export async function verifyAdminPin(pin) {
     return { ok: false, reason: 'offline' };
   }
 
-  if (response.ok) return { ok: true };
+  if (response.ok) {
+    const body = await response.json();
+    return { ok: true, elevation: body.elevation, expiresAtMs: body.expiresAtMs };
+  }
 
   let reason = 'invalid';
   let attemptsLeft;
