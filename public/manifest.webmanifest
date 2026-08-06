@@ -9,8 +9,8 @@
   "orientation": "portrait-primary",
   "lang": "th",
   "dir": "ltr",
-  "background_color": "#eef1f5",
-  "theme_color": "#1c2833",
+  "background_color": "#fbf8f3",
+  "theme_color": "#3d3557",
   "icons": [
     { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
   ]

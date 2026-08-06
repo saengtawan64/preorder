@@ -1,8 +1,10 @@
 /* ============================================================= tokens === */
-/* Style: light workspace, dark rail, heat scale.
-   The workspace is a cool near-white so it stays readable in daylight at the
-   counter; the rail stays dark in BOTH themes, which is what makes the app
-   read as chrome-plus-content rather than one flat surface.
+/* Style: "Soft Ledger" — warm cream workspace, dusty-plum rail, heat scale.
+   Chosen over a literal "cute pastel" direction specifically because this
+   app handles real customer money: the plum rail and cream page still read
+   as a considered, professional tool, just warmer than the cool navy/slate
+   version this replaced — the rail stays dark in BOTH themes, which is what
+   makes the app read as chrome-plus-content rather than one flat surface.
 
    Three type roles, and they do not overlap:
      --serif  headings and titles only
@@ -16,62 +18,70 @@
               reads the same in both places. Never use heat for decoration.
    Gold is neither: it is the brand, used only for money figures and the logo.
 
+   mint/amber split into a lighter --X (decorative: borders, dots, gradient
+   stops, bar fills — never used as text) and a darker --X-deep (the only
+   variant ever set as text colour). --rose does NOT split: it is read
+   directly as text in a few safety-relevant spots (required-field marks,
+   error messages), so --rose itself has to already clear text contrast —
+   splitting it would make one of those places is silently lighter than the
+   others depending on which token a future edit reaches for.
+
    Every foreground/background pair below clears WCAG AA (4.5:1) on both the
-   page and a card — checked, not assumed. Amber is the tightest; do not
-   lighten it. */
+   page and a card — checked, not assumed. Amber-deep and text-secondary are
+   the tightest; do not lighten either. */
 :root {
-  --rule: #1c2833;          /* ink: the rail colour, doubling as the accent */
-  --rail: #1c2833;
+  --rule: #3d3557;          /* ink: the rail colour, doubling as the accent */
+  --rail: #3d3557;
   --rail-2: rgba(255, 255, 255, .08);
   /* Dividers inside the rail have to be drawn in light-on-dark. --border is a
      page colour and would glare here; --rule is the rail itself and would
      vanish. */
   --rail-line: rgba(255, 255, 255, .11);
-  --rail-text: #93a6b8;
+  --rail-text: #c7bfe0;
   --rail-text-strong: #ffffff;
 
-  --gold: #8a6a00;
+  --gold: #c9a227;
   --gold-ink: #ffffff;
-  --gold-soft: rgba(138, 106, 0, .1);
-  --gold-deep: #7a5e00;
+  --gold-soft: #f3e8c8;
+  --gold-deep: #7a5e12;
 
   /* heat: fresh → ageing → overdue */
-  --mint: #0f7a4d;
-  --mint-ink: #ffffff;
-  --mint-soft: rgba(15, 122, 77, .1);
-  --mint-deep: #0f7a4d;
+  --mint: #7fae86;
+  --mint-ink: #173318;      /* dark ink reads better than white on this lighter green */
+  --mint-soft: #d9edde;
+  --mint-deep: #3d6b45;
 
-  --amber: #a85f09;
-  --amber-soft: rgba(168, 95, 9, .1);
-  --amber-deep: #a85f09;
-  --blue: #2f6fb0;
-  --rose: #b0271b;
+  --amber: #d99b4e;
+  --amber-soft: #f8e8cb;
+  --amber-deep: #8c5f1f;
+  --blue: #6e7fb0;
+  --rose: #9b4433;
   --rose-ink: #ffffff;      /* readable ON --rose — flips in the dark theme */
-  --rose-soft: rgba(176, 39, 27, .09);
-  --rose-deep: #b0271b;
+  --rose-soft: #f5dad3;
+  --rose-deep: #9b4433;
 
-  --bg: #eef1f5;
+  --bg: #fbf8f3;
   --surface: #ffffff;
-  --surface-2: #eaeef3;
-  --border: #dde3ea;
-  --border-strong: #b7c3d0;
-  --text: #16202b;
-  --text-secondary: #55677a;
+  --surface-2: #f3eee3;
+  --border: #ede6da;
+  --border-strong: #d6cbb5;
+  --text: #3a3438;
+  --text-secondary: #6e656c;
   /* Not lighter than this: muted carries the column heads and the tick labels,
      and has to clear 4.5:1 on the page background too, not just on a card. */
-  --text-muted: #5c6c80;
+  --text-muted: #736a72;
 
-  --btn: #1c2833;
-  --btn-hover: #2b3a48;
+  --btn: #3d3557;
+  --btn-hover: #4a4169;
   --btn-text: #ffffff;
 
-  --r-sm: 7px;
-  --r: 10px;
-  --r-lg: 13px;
+  --r-sm: 8px;
+  --r: 11px;
+  --r-lg: 15px;
   --r-full: 9999px;
-  --shadow-sm: 0 1px 3px rgba(22, 32, 43, .07);
-  --shadow-md: 0 8px 26px rgba(22, 32, 43, .14);
-  --shadow-drawer: -10px 0 36px rgba(22, 32, 43, .2);
+  --shadow-sm: 0 1px 3px rgba(61, 53, 87, .08);
+  --shadow-md: 0 8px 26px rgba(61, 53, 87, .16);
+  --shadow-drawer: -10px 0 36px rgba(61, 53, 87, .22);
 
   --font: "Prompt", -apple-system, BlinkMacSystemFont, sans-serif;
   --serif: Georgia, "Times New Roman", "Noto Serif Thai", serif;
@@ -83,44 +93,48 @@
      a slightly-different curve that reads as almost-but-not-quite consistent. */
   --ease-out: cubic-bezier(.16, 1, .3, 1);
 }
-/* Night shift. The rail does not change — only the workspace inverts, so the
-   two halves keep the same relationship to each other in both themes. */
+/* Night shift. The rail does not change hue — only the workspace inverts, so
+   the two halves keep the same relationship to each other in both themes.
+   Warm greys throughout, same rule as before: never blue-tinted, or the dark
+   theme stops reading as "this app at night" and starts reading as a
+   different app. */
 [data-theme=dark] {
-  --rule: #4d647a;
-  --rail: #131c24;
+  --rule: #8c7fb0;
+  --rail: #2a2440;
   --rail-2: rgba(255, 255, 255, .07);
   --rail-line: rgba(255, 255, 255, .09);
-  --rail-text: #8298ab;
+  --rail-text: #a79bc7;
   --rail-text-strong: #ffffff;
 
-  --bg: #101820;
-  --surface: #17222c;
-  --surface-2: #1d2a35;
-  --border: #2a3a48;
-  --border-strong: #3f5566;
-  --text: #e6edf3;
-  --text-secondary: #9db0c1;
-  --text-muted: #8ba0b2;
+  --bg: #1c1720;
+  --surface: #241e2c;
+  --surface-2: #2c2534;
+  --border: #3d3547;
+  --border-strong: #574c68;
+  --text: #ede7f0;
+  --text-secondary: #b3a8c2;
+  --text-muted: #9a8fae;
 
-  --gold: #d9b25a;
-  --gold-ink: #101820;
-  --gold-soft: rgba(217, 178, 90, .14);
-  --gold-deep: #e0bd6f;
+  --gold: #e0b84a;
+  --gold-ink: #1c1720;
+  --gold-soft: rgba(224, 184, 74, .16);
+  --gold-deep: #eac66a;
 
-  --mint: #3fb37c;
-  --mint-soft: rgba(63, 179, 124, .15);
-  --mint-deep: #5cc796;
-  --amber: #dc9438;
-  --amber-soft: rgba(220, 148, 56, .15);
-  --amber-deep: #e8a755;
-  --rose: #e0685c;
-  --rose-ink: #17222c;      /* the dark theme's red is light — ink goes dark on it */
-  --rose-soft: rgba(224, 104, 92, .15);
-  --rose-deep: #ec8074;
+  --mint: #7fc98f;
+  --mint-ink: #0f2013;
+  --mint-soft: rgba(127, 201, 143, .16);
+  --mint-deep: #a3d9ad;
+  --amber: #e0ad5e;
+  --amber-soft: rgba(224, 173, 94, .16);
+  --amber-deep: #f0c179;
+  --rose: #e0897a;
+  --rose-ink: #2a130f;      /* the dark theme's red is light — ink goes dark on it */
+  --rose-soft: rgba(224, 137, 122, .16);
+  --rose-deep: #eda398;
 
-  --btn: #e6edf3;
+  --btn: #ede7f0;
   --btn-hover: #ffffff;
-  --btn-text: #101820;
+  --btn-text: #1c1720;
 
   --shadow-sm: 0 1px 3px rgba(0, 0, 0, .4);
   --shadow-md: 0 8px 26px rgba(0, 0, 0, .5);
@@ -644,7 +658,7 @@ input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px va
 .customer-note.tone-warn { background: var(--amber-soft); border-color: var(--amber); color: var(--amber-deep) }
 
 /* ============================================================= drawer === */
-.drawer-overlay { position: fixed; inset: 0; background: rgba(22, 32, 43, .45); z-index: 900; animation: fade .18s ease-out }
+.drawer-overlay { position: fixed; inset: 0; background: rgba(58, 52, 56, .45); z-index: 900; animation: fade .18s ease-out }
 .drawer {
   position: fixed; top: 0; right: 0; bottom: 0;
   width: 360px; max-width: 92vw;
@@ -695,14 +709,14 @@ input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px va
   /* y-auto rescues short screens (landscape phone), where the card is taller
      than the viewport; x-hidden keeps the glow from widening the page. */
   overflow-x: hidden; overflow-y: auto;
-  background: #eef1f5;
-  color: #16202b;
+  background: #fbf8f3;
+  color: #3a3438;
 }
 /* One soft pool of light behind the card, so the page is not a flat slab. */
 .auth-gate::before {
   content: ''; position: fixed; left: 50%; top: -22vh; width: 780px; height: 780px;
   margin-left: -390px; border-radius: 50%; pointer-events: none;
-  background: radial-gradient(circle, rgba(28, 40, 51, .07), transparent 68%);
+  background: radial-gradient(circle, rgba(61, 53, 87, .08), transparent 68%);
 }
 
 /* `margin:auto` rather than `align-items:center` — centring a flex item that
@@ -711,9 +725,9 @@ input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px va
   position: relative; z-index: 1; margin: auto;
   width: 100%; max-width: 396px;
   background: #ffffff;
-  border: 1px solid #dde3ea;
+  border: 1px solid #ede6da;
   border-radius: 18px;
-  box-shadow: 0 18px 44px -18px rgba(22, 32, 43, .3);
+  box-shadow: 0 18px 44px -18px rgba(58, 52, 56, .32);
   overflow: hidden;
   animation: gate-in .45s var(--ease-out);
 }
@@ -726,7 +740,7 @@ input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px va
 .gate-head {
   display: flex; align-items: center; gap: .8rem;
   padding: 1.15rem 1.3rem;
-  background: linear-gradient(135deg, #1c2833, #2b3a48);
+  background: linear-gradient(135deg, #3d3557, #4a4169);
 }
 .auth-gate-logo { width: 44px; height: 44px; display: block; flex-shrink: 0 }
 .auth-gate-card h1 {
@@ -734,15 +748,15 @@ input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px va
   font-size: 1.12rem; font-weight: 400; line-height: 1.25; letter-spacing: .01em;
   color: #ffffff;
 }
-.auth-gate-card h1 em { font-style: italic; color: #d9b25a }
+.auth-gate-card h1 em { font-style: italic; color: #e0b84a }
 .gate-code {
   font-family: var(--mono); font-size: .56rem; font-weight: 600;
-  letter-spacing: .2em; color: #93a6b8; margin-top: 2px;
+  letter-spacing: .2em; color: #c7bfe0; margin-top: 2px;
 }
 
 /* --- light body --------------------------------------------------------- */
 .gate-body { padding: 1.4rem 1.3rem 1.15rem; text-align: center }
-.auth-gate-sub { font-size: .82rem; color: #55677a }
+.auth-gate-sub { font-size: .82rem; color: #6e656c }
 
 /* --- PIN entry ---------------------------------------------------------- */
 /* Dots, not rules — the round key is the shape language here, and the filled
@@ -750,10 +764,10 @@ input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px va
 .pin-dots { display: flex; justify-content: center; gap: 12px; margin: 1rem 0 .5rem }
 .pin-dots span {
   width: 11px; height: 11px; border-radius: 50%;
-  border: 1.5px solid #b7c3d0; background: transparent;
+  border: 1.5px solid #d6cbb5; background: transparent;
   transition: background var(--t), border-color var(--t), transform var(--t);
 }
-.pin-dots span.filled { background: #1c2833; border-color: #1c2833; transform: scale(1.2) }
+.pin-dots span.filled { background: #3d3557; border-color: #3d3557; transform: scale(1.2) }
 .pin-dots.shake { animation: pin-shake .34s }
 @keyframes pin-shake {
   0%,100% { transform: translateX(0) }
@@ -766,17 +780,17 @@ input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px va
 .pin-pad { display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px; margin-top: 1.1rem }
 .pin-pad button {
   height: 58px; border-radius: 14px;
-  border: 1px solid #dde3ea; background: #f2f5f8; color: #16202b;
+  border: 1px solid #ede6da; background: #f7f3ea; color: #3a3438;
   font-family: var(--mono); font-size: 1.3rem; font-weight: 600;
   cursor: pointer; transition: var(--t);
   display: flex; align-items: center; justify-content: center;
   -webkit-tap-highlight-color: transparent;
 }
-.pin-pad button:hover { background: #e6ebf1; border-color: #b7c3d0 }
-.pin-pad button:active { background: #1c2833; border-color: #1c2833; color: #ffffff; transform: scale(.95) }
-.pin-pad button:focus-visible { outline: 2px solid #1c2833; outline-offset: 2px }
-.pin-pad .pin-del { background: transparent; border-color: transparent; color: #55677a }
-.pin-pad .pin-del:hover { background: #f2f5f8; border-color: #dde3ea; color: #16202b }
+.pin-pad button:hover { background: #ece4d3; border-color: #d6cbb5 }
+.pin-pad button:active { background: #3d3557; border-color: #3d3557; color: #ffffff; transform: scale(.95) }
+.pin-pad button:focus-visible { outline: 2px solid #3d3557; outline-offset: 2px }
+.pin-pad .pin-del { background: transparent; border-color: transparent; color: #6e656c }
+.pin-pad .pin-del:hover { background: #f7f3ea; border-color: #ede6da; color: #3a3438 }
 .pin-pad .pin-del svg { width: 21px; height: 21px }
 /* While the PIN is being checked the pad dims and stops accepting taps, so a
    second submit can't fire against a request already in flight. */
@@ -784,13 +798,13 @@ input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px va
 
 .gate-foot {
   display: flex; align-items: center; justify-content: center; gap: .35rem;
-  margin-top: 1.3rem; padding-top: 1rem; border-top: 1px solid #dde3ea;
-  font-size: .68rem; color: #5c6c80;
+  margin-top: 1.3rem; padding-top: 1rem; border-top: 1px solid #ede6da;
+  font-size: .68rem; color: #736a72;
 }
 .gate-foot span { display: flex; align-items: center; gap: .35rem }
 .gate-foot svg { width: 13px; height: 13px }
 
-.auth-gate .error-msg { display: block; color: #b0271b; font-size: .74rem; min-height: 1.05em }
+.auth-gate .error-msg { display: block; color: #9b4433; font-size: .74rem; min-height: 1.05em }
 .auth-gate .error-msg.hidden { display: none }
 
 /* Short screens (landscape phone): trim the masthead, keep the keypad usable. */
@@ -1046,7 +1060,7 @@ input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px va
     display: flex; position: fixed; left: 0; right: 0; bottom: 0; z-index: 700;
     background: var(--surface); border-top: 1px solid var(--border);
     padding-bottom: env(safe-area-inset-bottom, 0);
-    box-shadow: 0 -4px 18px rgba(22, 32, 43, .08);
+    box-shadow: 0 -4px 18px rgba(61, 53, 87, .08);
   }
   .tabbar button {
     flex: 1; border: 0; background: none; cursor: pointer;

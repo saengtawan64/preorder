@@ -73,7 +73,7 @@ src/
   received.js               เรียก /api/mark-received (ทำให้รับของแล้วสำเร็จ + เก็บ receivedAtIso)
   utils.js                  ฟอร์แมต, parse CSV, escape HTML, timestamp มาตรฐาน
   icons.js                  รายชื่อไอคอน Lucide ที่ใช้จริง
-  style.css                 สไตล์ทั้งหมด (ธีมแถบเวลา สว่าง+แถบเข้ม + แถบล่างบนมือถือ)
+  style.css                 สไตล์ทั้งหมด (ธีม "Soft Ledger" ครีม+แถบม่วงเข้ม + แถบล่างบนมือถือ)
 public/
   _headers                  security headers ของ Cloudflare Pages (รวม CSP)
   logo.svg                  โลโก้ BSD (ไซด์บาร์ + หน้าล็อกอิน)
