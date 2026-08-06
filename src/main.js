@@ -15,7 +15,7 @@ import { markReceived } from './received.js';
 import { persistTheme, resetOnSignOut, state } from './state.js';
 import { fetchSales, fetchTargets, saveTargets, DEFAULT_TARGETS, BRANDS } from './sales.js';
 import { renderSalesDashboard } from './sales-view.js';
-import { renderInstallment, quote, TERMS } from './installment.js';
+import { renderInstallmentShell, renderInstallmentResults } from './installment.js';
 import { fetchPins, addPin, removePin, renamePin } from './pins.js';
 import { renderPins } from './pins-view.js';
 import { agingSummary, agingTone, daysHeld } from './aging.js';
@@ -48,6 +48,7 @@ const el = {
 
   sidebar: document.getElementById('sidebar'),
   sidebarToggle: document.getElementById('sidebar-toggle'),
+  sidebarOverlay: document.getElementById('sidebar-overlay'),
   navPending: document.getElementById('nav-pending'),
   navReceived: document.getElementById('nav-received'),
   navDeleted: document.getElementById('nav-deleted'),
@@ -211,7 +212,7 @@ function showApp() {
 
 function showGate() {
   closeAddDrawer();
-  el.sidebar.classList.remove('open');
+  closeSidebar();
   el.appContent.classList.add('hidden');
   el.authGate.classList.remove('hidden');
   el.authGateError.classList.add('hidden');
@@ -757,37 +758,51 @@ el.salesContainer.addEventListener('input', (event) => {
 
 /* ------------------------------------------------- installment calculator - */
 
-const installment = { price: null, downPercent: 10 };
+const installment = { price: null, down: 0 };
+// Populated the first time showInstallment() builds the shell — these don't
+// exist in index.html, unlike the rest of `el`, since installment.js renders
+// them dynamically.
+let instResults = null;
 
+/**
+ * showInstallment() used to call a single render function that rebuilt the
+ * whole container — inputs included — on every keystroke. The very first
+ * digit typed into an empty price field would flip the results from the
+ * empty-state message to a real table, which this codebase's own
+ * "re-render only the numbers" shortcut couldn't handle (there were no
+ * `.inst-monthly` cells yet to patch), so it fell back to the full rebuild —
+ * destroying the `<input>` the browser had focused and dismissing the
+ * on-screen keyboard mid-word. The shell/results split below removes the
+ * failure mode entirely rather than patching around it: the shell (the
+ * inputs) is built once per visit to the tab, and every keystroke after that
+ * only ever touches #inst-results, which holds no input the browser could be
+ * focused on.
+ */
 function showInstallment() {
   el.installmentContainer.classList.remove('hidden');
-  renderInstallment(el.installmentContainer, installment);
+  if (!el.installmentContainer.querySelector('#inst-price')) {
+    renderInstallmentShell(el.installmentContainer);
+    instResults = el.installmentContainer.querySelector('#inst-results');
+    el.installmentContainer.querySelector('#inst-price').value = installment.price ?? '';
+    el.installmentContainer.querySelector('#inst-down').value = installment.down;
+  }
+  renderInstallmentResults(instResults, installment);
   refreshIcons();
 }
 
 el.installmentContainer.addEventListener('input', (event) => {
-  if (event.target.id !== 'inst-price') return;
-  const raw = Number(event.target.value);
-  installment.price = Number.isFinite(raw) && raw > 0 ? raw : null;
-
-  // Re-render only the numbers, so typing doesn't steal focus from the field.
-  const rows = installment.price
-    ? TERMS.map((m) => quote(installment.price, installment.downPercent, m))
-    : [];
-  const cells = el.installmentContainer.querySelectorAll('.inst-monthly');
-  if (cells.length === rows.length && rows.length > 0) {
-    rows.forEach((r, i) => { cells[i].textContent = '฿' + Math.round(r.monthly).toLocaleString('th-TH'); });
-    const downOut = el.installmentContainer.querySelector('.inst-down-out .kpi-value');
-    if (downOut) downOut.textContent = '฿' + rows[0].down.toLocaleString('th-TH');
+  if (event.target.id === 'inst-price') {
+    const raw = Number(event.target.value);
+    installment.price = Number.isFinite(raw) && raw > 0 ? raw : null;
+  } else if (event.target.id === 'inst-down') {
+    const raw = Number(event.target.value);
+    installment.down = Number.isFinite(raw) && raw >= 0 ? raw : 0;
   } else {
-    showInstallment();
+    return;
   }
-});
-
-el.installmentContainer.addEventListener('change', (event) => {
-  if (event.target.id !== 'inst-down') return;
-  installment.downPercent = Number(event.target.value);
-  showInstallment();
+  // Only #inst-results is touched here — never the inputs above it, so
+  // whichever field is focused stays focused (and the keyboard stays up).
+  renderInstallmentResults(instResults, installment);
 });
 
 /* ------------------------------------------------------- PIN management --- */
@@ -1082,8 +1097,21 @@ function withViewTransition(update) {
   document.startViewTransition(update);
 }
 
+/* Mobile-only drawer. The overlay's own hidden class always tracks the
+   sidebar's open class, so there is exactly one place that can get the two
+   out of sync: here. */
+function closeSidebar() {
+  el.sidebar.classList.remove('open');
+  el.sidebarOverlay.classList.add('hidden');
+}
+function toggleSidebar() {
+  const opening = !el.sidebar.classList.contains('open');
+  el.sidebar.classList.toggle('open', opening);
+  el.sidebarOverlay.classList.toggle('hidden', !opening);
+}
+
 function setListMode(mode) {
-  el.sidebar.classList.remove('open'); // closes the mobile drawer after a pick
+  closeSidebar(); // closes the mobile drawer after a pick
   if (listMode === mode) return;
   listMode = mode;
   withViewTransition(renderList);
@@ -1106,7 +1134,7 @@ el.tabbar.addEventListener('click', (event) => {
 
   const tab = button.getAttribute('data-tab');
   if (tab === 'add') return openDrawer();
-  if (tab === 'more') return el.sidebar.classList.toggle('open');
+  if (tab === 'more') return toggleSidebar();
   setListMode(tab);
 });
 
@@ -1121,7 +1149,8 @@ function syncTabbar() {
   el.tabCountPending.textContent = String(overdue);
   el.tabCountPending.classList.toggle('hidden', overdue === 0);
 }
-el.sidebarToggle.addEventListener('click', () => el.sidebar.classList.toggle('open'));
+el.sidebarToggle.addEventListener('click', toggleSidebar);
+el.sidebarOverlay.addEventListener('click', closeSidebar);
 
 /* --------------------------------------------------- add-deposit drawer --- */
 
@@ -1195,7 +1224,7 @@ el.addOverlay.addEventListener('click', closeAddDrawer);
 document.addEventListener('keydown', (event) => {
   if (event.key !== 'Escape') return;
   closeAddDrawer();
-  el.sidebar.classList.remove('open');
+  closeSidebar();
 });
 
 /* ----------------------------------------------------------------- form --- */

@@ -6,52 +6,92 @@
  * balance. So a 24-month plan costs twice the interest of a 12-month one on the
  * same principal.
  *
- *   financed = price - down payment
+ *   financed = price - down
  *   interest = financed × RATE × months
  *   monthly  = (financed + interest) ÷ months
  *
  * A reducing-balance (effective) rate would give different — lower — numbers.
  * If the shop ever switches, this file is the only place that has to change.
+ *
+ * Rendering is split into a shell (the price/down inputs, built once) and a
+ * results table (rebuilt on every keystroke). That split exists specifically
+ * so typing never recreates the input elements — see main.js's
+ * showInstallment() for the bug that split fixes.
  */
 
 /** Flat interest per month, as charged by the shop's finance partner. */
 export const MONTHLY_RATE = 0.0099;
 
 export const TERMS = [12, 18, 24, 36, 48];
-export const DOWN_PERCENTS = [0, 10, 15, 20, 25, 30, 40, 50, 60, 70];
 
 const baht = (n) => '฿' + Math.round(n).toLocaleString('th-TH');
 
-/** One row of the plan table. */
-export function quote(price, downPercent, months, rate = MONTHLY_RATE) {
-  const down = Math.round((price * downPercent) / 100);
-  const financed = Math.max(price - down, 0);
+/** One row of the plan table. `down` is a baht amount, not a percentage. */
+export function quote(price, down, months, rate = MONTHLY_RATE) {
+  const safeDown = Math.max(down, 0);
+  const financed = Math.max(price - safeDown, 0);
   const interest = financed * rate * months;
   const total = financed + interest;
 
   return {
     months,
-    down,
+    down: safeDown,
     financed,
     interest,
     total,
     monthly: months > 0 ? total / months : 0,
     // What the customer ends up paying overall, down payment included.
-    grandTotal: total + down,
+    grandTotal: total + safeDown,
   };
 }
 
-export function renderInstallment(container, { price, downPercent }) {
-  const valid = Number.isFinite(price) && price > 0;
-  const rows = valid
-    ? TERMS.map((months) => quote(price, downPercent, months))
-    : [];
+/**
+ * The static part: the price and down-payment inputs, plus an empty slot for
+ * the results. Rendered once per visit to the tab — renderInstallmentResults()
+ * is what runs on every keystroke afterward, and it never touches this
+ * markup, so the inputs are never recreated while someone is typing into them.
+ */
+export function renderInstallmentShell(container) {
+  container.innerHTML = `
+    <div class="date-group-block">
+      <div class="date-group-header">
+        <div class="date-title"><i data-lucide="calculator"></i> คำนวณค่างวดผ่อน</div>
+        <span class="kpi-sub">ดอกเบี้ยคงที่ ${(MONTHLY_RATE * 100).toFixed(2)}% ต่อเดือน</span>
+      </div>
 
-  const table = !valid
+      <div class="inst-controls">
+        <div class="inst-field">
+          <label for="inst-price">ราคาสินค้า (บาท)</label>
+          <input type="number" id="inst-price" inputmode="numeric" min="0" step="100"
+                 placeholder="เช่น 25900" />
+        </div>
+        <div class="inst-field">
+          <label for="inst-down">เงินดาวน์ (บาท)</label>
+          <input type="number" id="inst-down" inputmode="numeric" min="0" step="100" value="0" />
+        </div>
+      </div>
+
+      <div id="inst-results"></div>
+    </div>
+    <p class="sales-note"><i data-lucide="info"></i>
+      ตัวเลขนี้เป็นการประมาณจากสูตรดอกเบี้ยคงที่ ${(MONTHLY_RATE * 100).toFixed(2)}%/เดือน
+      ยอดจริงยึดตามที่บริษัทสินเชื่ออนุมัติ</p>`;
+}
+
+/**
+ * The part that changes on every keystroke: the plan table (or the empty
+ * state before a price is entered). Safe to call as often as needed — it
+ * only ever touches #inst-results, never the inputs above it.
+ */
+export function renderInstallmentResults(resultsEl, { price, down }) {
+  const valid = Number.isFinite(price) && price > 0;
+  const rows = valid ? TERMS.map((months) => quote(price, down, months)) : [];
+
+  resultsEl.innerHTML = !valid
     ? '<div class="empty-state"><i data-lucide="calculator"></i><p>ใส่ราคาสินค้าเพื่อคำนวณค่างวด</p></div>'
     : `
       <div class="table-responsive">
-        <table class="data-table">
+        <table class="data-table inst-table">
           <thead>
             <tr>
               <th>ระยะเวลา</th>
@@ -73,38 +113,4 @@ export function renderInstallment(container, { price, downPercent }) {
           </tbody>
         </table>
       </div>`;
-
-  const down = valid ? Math.round((price * downPercent) / 100) : 0;
-
-  container.innerHTML = `
-    <div class="date-group-block">
-      <div class="date-group-header">
-        <div class="date-title"><i data-lucide="calculator"></i> คำนวณค่างวดผ่อน</div>
-        <span class="kpi-sub">ดอกเบี้ยคงที่ ${(MONTHLY_RATE * 100).toFixed(2)}% ต่อเดือน</span>
-      </div>
-
-      <div class="inst-controls">
-        <div class="inst-field">
-          <label for="inst-price">ราคาสินค้า (บาท)</label>
-          <input type="number" id="inst-price" inputmode="numeric" min="0" step="100"
-                 placeholder="เช่น 25900" value="${valid ? price : ''}" />
-        </div>
-        <div class="inst-field">
-          <label for="inst-down">เงินดาวน์</label>
-          <select id="inst-down" class="mini-select">
-            ${DOWN_PERCENTS.map((p) =>
-              `<option value="${p}"${p === downPercent ? ' selected' : ''}>${p}%</option>`).join('')}
-          </select>
-        </div>
-        <div class="inst-down-out">
-          <span class="kpi-label">ดาวน์</span>
-          <span class="kpi-value mono">${baht(down)}</span>
-        </div>
-      </div>
-
-      ${table}
-    </div>
-    <p class="sales-note"><i data-lucide="info"></i>
-      ตัวเลขนี้เป็นการประมาณจากสูตรดอกเบี้ยคงที่ ${(MONTHLY_RATE * 100).toFixed(2)}%/เดือน
-      ยอดจริงยึดตามที่บริษัทสินเชื่ออนุมัติ</p>`;
 }

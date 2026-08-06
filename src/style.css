@@ -523,8 +523,6 @@ input:disabled { background: var(--surface-2); color: var(--text-muted); cursor:
 .inst-field { display: flex; flex-direction: column; gap: .25rem }
 .inst-field label { font-size: .74rem; font-weight: 500; color: var(--text-secondary) }
 .inst-field input { width: 170px }
-.inst-down-out { display: flex; flex-direction: column; margin-left: auto }
-.inst-down-out .kpi-value { font-size: 1.1rem; color: var(--gold-deep) }
 .inst-monthly {
   font-family: var(--mono); font-variant-numeric: tabular-nums;
   color: var(--gold-deep); font-size: .95rem; font-weight: 600;
@@ -561,7 +559,10 @@ input:disabled { background: var(--surface-2); color: var(--text-muted); cursor:
   .target-edit-row { grid-template-columns: 74px 1fr }
   .inst-field input { width: 100% }
   .inst-field { flex: 1 1 100% }
-  .inst-down-out { margin-left: 0 }
+  /* The deposit-list card view stamps every row with an amber/mint/rose
+     accent bar for pending/received/deleted — meaningless on a loan-term
+     table, since a row here is just "12 months" or "24 months", not a status. */
+  .inst-table tbody tr::before { display: none }
   .bar-row { grid-template-columns: 54px 1fr 62px; }
   .bar-diff { display: none }
   .target-row { grid-template-columns: 54px 1fr 38px; }
