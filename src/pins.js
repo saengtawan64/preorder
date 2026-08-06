@@ -9,10 +9,19 @@
 
 const ENDPOINT = '/api/pins';
 
-async function call(idToken, init) {
+// PIN management is admin-only — every call needs both the caller's Firebase
+// ID token (who is signed in) and a fresh admin-PIN step-up token (proof
+// someone just typed an admin PIN; see requireAdminStepUp() in main.js and
+// functions/api/verify-admin-pin.js). The shared-login model means the first
+// alone can't say who's actually at the till right now.
+async function call(idToken, elevation, init) {
   const response = await fetch(ENDPOINT, {
     ...init,
-    headers: { Authorization: `Bearer ${idToken}`, ...(init?.headers || {}) },
+    headers: {
+      Authorization: `Bearer ${idToken}`,
+      'X-Admin-Elevation': elevation,
+      ...(init?.headers || {}),
+    },
   });
   if (!response.ok) {
     // 4xx bodies are Thai messages meant for the user; 5xx are not.
@@ -22,17 +31,22 @@ async function call(idToken, init) {
   return response.json();
 }
 
-/** `{ count, pins: [{ index, label, hint, addedAtIso }] }` */
-export const fetchPins = (idToken) => call(idToken, { method: 'GET' });
+/** `{ count, pins: [{ index, label, hint, addedAtIso, role }] }` */
+export const fetchPins = (idToken, elevation) => call(idToken, elevation, { method: 'GET' });
 
-const post = (idToken, body) =>
-  call(idToken, {
+const post = (idToken, elevation, body) =>
+  call(idToken, elevation, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
 
-export const addPin = (idToken, pin, label) => post(idToken, { action: 'add', pin, label });
+export const addPin = (idToken, elevation, pin, label, role) =>
+  post(idToken, elevation, { action: 'add', pin, label, role });
 /** `hint` is the mask the screen was showing — the server rejects a stale one. */
-export const removePin = (idToken, index, hint) => post(idToken, { action: 'remove', index, hint });
-export const renamePin = (idToken, index, label) => post(idToken, { action: 'rename', index, label });
+export const removePin = (idToken, elevation, index, hint) =>
+  post(idToken, elevation, { action: 'remove', index, hint });
+export const renamePin = (idToken, elevation, index, label) =>
+  post(idToken, elevation, { action: 'rename', index, label });
+export const setPinRole = (idToken, elevation, index, role) =>
+  post(idToken, elevation, { action: 'setRole', index, role });

@@ -380,6 +380,15 @@ tr.row-deleted td.no-strike { text-decoration: none }
 .chip-received { color: var(--mint-deep) }
 .chip-deleted { color: var(--rose-deep) }
 
+.role-chip {
+  display: inline-block; font-size: .68rem; font-weight: 600;
+  padding: .1rem .5rem; border-radius: var(--r-sm);
+  border: 1px solid currentColor; background: transparent;
+  white-space: nowrap;
+}
+.role-admin { color: var(--gold-deep) }
+.role-staff { color: var(--text-muted) }
+
 /* Age of an unclaimed deposit, under its status chip. Deliberately quieter
    than the chip until it crosses a threshold — most rows are young, and a
    list where everything shouts says nothing. */
@@ -678,6 +687,33 @@ input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px va
   display: flex; align-items: flex-start; gap: .4rem;
 }
 
+/* ------------------------------------------------------- admin step-up --- */
+.admin-gate {
+  position: fixed; inset: 0; z-index: 1000;
+  display: flex; align-items: center; justify-content: center; padding: 1rem;
+}
+.admin-gate-card {
+  width: 320px; max-width: 100%;
+  background: var(--surface); border: 1px solid var(--border);
+  border-radius: var(--r-lg); box-shadow: var(--shadow-drawer);
+  padding: 1.3rem; animation: rise-in .22s var(--ease-out) backwards;
+}
+.admin-gate-card h3 {
+  display: flex; align-items: center; gap: .5rem;
+  font-size: 1.05rem; margin: 0 0 .3rem;
+}
+.admin-gate-card h3 svg { color: var(--amber-deep) }
+.admin-gate-card .text-muted { font-size: .82rem; margin: 0 0 .8rem }
+.admin-gate-card input {
+  width: 100%; font-family: var(--mono); font-size: 1.1rem; letter-spacing: .12em;
+  text-align: center; padding: .55rem; border-radius: var(--r-sm);
+  border: 1px solid var(--border-strong); background: var(--surface-2); color: var(--text);
+}
+.admin-gate-card input:focus { outline: 2px solid var(--rule); outline-offset: 1px }
+.admin-gate-card .error-msg { display: block; margin-top: .5rem }
+.admin-gate-actions { display: flex; gap: .6rem; margin-top: 1rem }
+.admin-gate-actions .btn { flex: 1 }
+
 /* ============================================================= toasts === */
 .toast-container { position: fixed; bottom: 1.25rem; right: 1.25rem; z-index: 2000; display: flex; flex-direction: column; gap: .5rem }
 .toast {
@@ -972,7 +1008,9 @@ input:focus { outline: none; border-color: var(--gold); box-shadow: 0 0 0 3px va
 @media (max-width: 820px) {
   .shell { grid-template-columns: 1fr }
   .sidebar {
-    position: fixed; top: 0; left: 0; bottom: 0; width: 210px; z-index: 800; height: 100vh;
+    /* Above .drawer-overlay's z-index:900 — otherwise the full-screen dimmer
+       sits on top of the drawer's own nav buttons and eats their taps. */
+    position: fixed; top: 0; left: 0; bottom: 0; width: 210px; z-index: 910; height: 100vh;
     transform: translateX(-100%); transition: transform .24s cubic-bezier(.4, 0, .2, 1);
   }
   .sidebar.open { transform: translateX(0); box-shadow: 10px 0 40px rgba(0, 0, 0, .3) }

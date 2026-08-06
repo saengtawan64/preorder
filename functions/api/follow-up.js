@@ -11,8 +11,11 @@
 import { verifyFirebaseToken } from '../_lib/verify-firebase-token.js';
 import { getAccessToken } from '../_lib/google-auth.js';
 import { recordFollowUp } from '../_lib/firestore-write.js';
+import { isCrossSite } from '../_lib/same-origin.js';
 
 export async function onRequestPost({ request, env }) {
+  if (isCrossSite(request)) return new Response('Forbidden', { status: 403 });
+
   const authz = request.headers.get('Authorization') || '';
   const idToken = authz.startsWith('Bearer ') ? authz.slice(7).trim() : '';
 

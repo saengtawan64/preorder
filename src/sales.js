@@ -188,11 +188,19 @@ export async function fetchTargets(idToken) {
   return body.targets || { ...DEFAULT_TARGETS };
 }
 
-/** Save the shop's targets. Resolves to the stored values. */
-export async function saveTargets(idToken, targets) {
+/**
+ * Save the shop's targets. Admin-only — needs a fresh admin-PIN step-up token
+ * alongside the session's ID token (see requireAdminStepUp() in main.js and
+ * functions/api/verify-admin-pin.js). Resolves to the stored values.
+ */
+export async function saveTargets(idToken, elevation, targets) {
   const response = await fetch('/api/sales-targets', {
     method: 'POST',
-    headers: { Authorization: `Bearer ${idToken}`, 'Content-Type': 'application/json' },
+    headers: {
+      Authorization: `Bearer ${idToken}`,
+      'Content-Type': 'application/json',
+      'X-Admin-Elevation': elevation,
+    },
     body: JSON.stringify({ targets }),
   });
   if (!response.ok) throw new Error((await response.text()) || 'บันทึกเป้าไม่สำเร็จ');

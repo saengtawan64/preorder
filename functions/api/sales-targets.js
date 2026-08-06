@@ -13,6 +13,8 @@
 import { verifyFirebaseToken } from '../_lib/verify-firebase-token.js';
 import { getAccessToken } from '../_lib/google-auth.js';
 import { getDocFields, setDocFields } from '../_lib/firestore-doc.js';
+import { verifyElevation } from '../_lib/elevation-token.js';
+import { isCrossSite } from '../_lib/same-origin.js';
 
 const PATH = 'settings/salesTargets';
 
@@ -57,7 +59,15 @@ export async function onRequestGet({ request, env }) {
 }
 
 export async function onRequestPost({ request, env }) {
-  if (!(await authed(request, env))) return new Response('Unauthorized', { status: 401 });
+  if (isCrossSite(request)) return new Response('Forbidden', { status: 403 });
+
+  // Reading targets is normal staff work (the dashboard shows progress against
+  // them); setting them is a financial decision, so only that write requires
+  // a fresh admin-PIN step-up — see functions/api/verify-admin-pin.js.
+  const claims = await authed(request, env);
+  if (!claims) return new Response('Unauthorized', { status: 401 });
+  const elevated = await verifyElevation(request.headers.get('X-Admin-Elevation'), env.ADMIN_ELEVATION_SECRET);
+  if (!elevated) return new Response('ต้องยืนยันรหัสแอดมินก่อน', { status: 403 });
 
   let payload;
   try {

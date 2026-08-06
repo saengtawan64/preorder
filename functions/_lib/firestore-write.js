@@ -186,6 +186,42 @@ export async function markReceivedFromWeb(projectId, token, depositId) {
 }
 
 /**
+ * Soft-delete a deposit, on behalf of a signed-in admin clicking "ลบ" in the
+ * web app (see functions/api/delete-deposit.js — the caller has already
+ * proven a fresh admin-PIN step-up before this runs).
+ *
+ * This used to be a direct client Firestore write, allowed by firestore.rules
+ * for any signed-in user — but that rule couldn't tell a staff session from
+ * an admin one (there's one shared Firebase session; see src/auth.js), so
+ * restricting deletion to admins requires checking it somewhere that *can*
+ * see the step-up proof. firestore.rules only ever sees `request.auth`, not
+ * an arbitrary header, so the check has to happen here instead, and the rule
+ * now refuses this write from the client entirely (see firestore.rules).
+ *
+ * Returns { updated: false } when the deposit doesn't exist.
+ */
+export async function softDeleteFromWeb(projectId, token, depositId) {
+  const path = `projects/${projectId}/databases/(default)/documents/deposits/${encodeURIComponent(depositId)}`;
+  const existing = await getDeposit(projectId, token, depositId);
+  if (!existing) return { updated: false };
+
+  const nowIso = new Date().toISOString();
+  const query = ['deletedAt', 'updatedAtIso'].map((f) => `updateMask.fieldPaths=${encodeURIComponent(f)}`).join('&');
+  const response = await firestoreFetch(`${path}?${query}`, token, {
+    method: 'PATCH',
+    body: JSON.stringify({
+      fields: { deletedAt: toFirestoreValue(nowIso), updatedAtIso: toFirestoreValue(nowIso) },
+    }),
+  });
+
+  if (!response.ok) {
+    throw new Error(`Firestore soft-delete write failed: ${response.status} ${await response.text()}`);
+  }
+
+  return { updated: true, deletedAt: nowIso };
+}
+
+/**
  * Upsert a deposit coming from a Sheet edit.
  *
  * Business fields (name, phone, item, amount, timestamp, deleted) always

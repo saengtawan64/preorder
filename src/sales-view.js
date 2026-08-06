@@ -15,13 +15,6 @@ import { escapeHtml } from './utils.js';
 const baht = (n) => '฿' + Math.round(n).toLocaleString('th-TH');
 const units = (n) => Math.round(n).toLocaleString('th-TH');
 
-/** Compact money for tight spaces: ฿1.83M / ฿94.7K */
-function shortBaht(n) {
-  if (Math.abs(n) >= 1_000_000) return '฿' + (n / 1_000_000).toFixed(2) + 'M';
-  if (Math.abs(n) >= 1_000) return '฿' + (n / 1_000).toFixed(1) + 'K';
-  return '฿' + Math.round(n);
-}
-
 function kpiCard(label, value, sub, tone = '') {
   return `
     <div class="kpi ${tone}">
@@ -59,15 +52,15 @@ function renderKpis(month, prevMonth, mode, targets) {
 
   const remainValue = remaining === 0 ? 'ปิดเป้าแล้ว' : baht(remaining);
   const remainSub = remaining === 0
-    ? `เกินเป้า ${shortBaht(month.totalAmount - target)}`
-    : `จากเป้า ${shortBaht(target)} · ทำได้ ${pct.toFixed(0)}%`;
+    ? `เกินเป้า ${baht(month.totalAmount - target)}`
+    : `จากเป้า ${baht(target)} · ทำได้ ${pct.toFixed(0)}%`;
 
   const paceValue = remaining === 0
     ? '—'
     : left === 0 ? 'จบเดือนแล้ว' : baht(remaining / left);
   const paceSub = remaining === 0
     ? 'ไม่ต้องขายเพิ่มแล้ว'
-    : left === 0 ? `ปิดไม่ทัน ขาด ${shortBaht(remaining)}` : `ต่อวัน · เหลือ ${left} วัน`;
+    : left === 0 ? `ปิดไม่ทัน ขาด ${baht(remaining)}` : `ต่อวัน · เหลือ ${left} วัน`;
 
   const asp = month.totalUnits > 0 ? month.totalAmount / month.totalUnits : 0;
 
@@ -94,7 +87,7 @@ function renderBrandBars(month, prevMonth, mode) {
   }
 
   const max = Math.max(...rows.flatMap((r) => [r.now, r.before]), 1);
-  const fmt = isAmount ? shortBaht : units;
+  const fmt = isAmount ? baht : units;
 
   const bars = rows.map((r) => {
     const diff = momChange(r.now, r.before);
@@ -172,7 +165,7 @@ function renderTargets(month, groupKey, targets, editing) {
         <div class="target-name">${escapeHtml(key)}</div>
         <div class="target-track"><div class="target-fill" style="width:${brandPct}%"></div></div>
         <div class="target-pct mono">${brandPct.toFixed(0)}%</div>
-        <div class="target-num mono">${brandLeft > 0 ? `เหลือ ${shortBaht(brandLeft)}` : 'ปิดเป้าแล้ว'}</div>
+        <div class="target-num mono">${brandLeft > 0 ? `เหลือ ${baht(brandLeft)}` : 'ปิดเป้าแล้ว'}</div>
       </div>`;
   }).join('');
 

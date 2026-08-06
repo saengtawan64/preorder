@@ -15,15 +15,31 @@ import { verifyFirebaseToken } from '../_lib/verify-firebase-token.js';
 import { getAccessToken } from '../_lib/google-auth.js';
 import { getDocFields, setDocFields } from '../_lib/firestore-doc.js';
 import { readEntries, entriesToFields, maskPin, toPublic } from '../_lib/pins-store.js';
+import { verifyElevation } from '../_lib/elevation-token.js';
+import { isCrossSite } from '../_lib/same-origin.js';
 
 const PATH = 'settings/pins';
 const MAX_PINS = 10;
 const MAX_LABEL = 24;
 
-async function authed(request, env) {
+/**
+ * PIN management is an admin-only screen, gated by step-up (see
+ * functions/api/verify-admin-pin.js), not by the signed-in session's own
+ * role — the shop's login is one shared session, so a session opened by a
+ * staff PIN (or an admin PIN left unattended on a shared device) proves
+ * nothing about who is at the till right now. Returns a Response to
+ * short-circuit with (401 not signed in, 403 no valid recent step-up), or
+ * null to proceed.
+ */
+async function requireAdmin(request, env) {
   const authz = request.headers.get('Authorization') || '';
   const idToken = authz.startsWith('Bearer ') ? authz.slice(7).trim() : '';
-  return verifyFirebaseToken(idToken, env.FIRESTORE_PROJECT_ID);
+  const claims = await verifyFirebaseToken(idToken, env.FIRESTORE_PROJECT_ID);
+  if (!claims) return new Response('Unauthorized', { status: 401 });
+
+  const elevated = await verifyElevation(request.headers.get('X-Admin-Elevation'), env.ADMIN_ELEVATION_SECRET);
+  if (!elevated) return new Response('ต้องยืนยันรหัสแอดมินก่อน', { status: 403 });
+  return null;
 }
 
 async function serviceToken(env) {
@@ -34,7 +50,8 @@ const ok = (entries) => Response.json({ ok: true, count: entries.length, pins: t
 const bad = (message) => new Response(message, { status: 400 });
 
 export async function onRequestGet({ request, env }) {
-  if (!(await authed(request, env))) return new Response('Unauthorized', { status: 401 });
+  const denied = await requireAdmin(request, env);
+  if (denied) return denied;
 
   try {
     const token = await serviceToken(env);
@@ -46,7 +63,10 @@ export async function onRequestGet({ request, env }) {
 }
 
 export async function onRequestPost({ request, env }) {
-  if (!(await authed(request, env))) return new Response('Unauthorized', { status: 401 });
+  if (isCrossSite(request)) return new Response('Forbidden', { status: 403 });
+
+  const denied = await requireAdmin(request, env);
+  if (denied) return denied;
 
   let payload;
   try {
@@ -57,10 +77,14 @@ export async function onRequestPost({ request, env }) {
 
   const action = String(payload?.action || '');
   const label = String(payload?.label ?? '').trim().slice(0, MAX_LABEL);
+  // Adding is the one moment a role is chosen explicitly; every other entry's
+  // role only ever changes through the 'setRole' action below.
+  const requestedRole = payload?.role === 'admin' ? 'admin' : 'staff';
 
   try {
     const token = await serviceToken(env);
     const entries = readEntries(await getDocFields(env.FIRESTORE_PROJECT_ID, token, PATH));
+    const adminCount = () => entries.filter((entry) => entry.role === 'admin').length;
 
     if (action === 'add') {
       const pin = String(payload?.pin ?? '').trim();
@@ -75,7 +99,7 @@ export async function onRequestPost({ request, env }) {
         return bad(`รหัสนี้มีอยู่แล้ว — คือ "${entries[clash].label || `รหัสที่ ${clash + 1}`}"`);
       }
       if (entries.length >= MAX_PINS) return bad(`เก็บได้สูงสุด ${MAX_PINS} รหัส`);
-      entries.push({ pin, label, addedAtIso: new Date().toISOString() });
+      entries.push({ pin, label, addedAtIso: new Date().toISOString(), role: requestedRole });
     } else if (action === 'remove') {
       const index = Number(payload?.index);
       if (!Number.isInteger(index) || index < 0 || index >= entries.length) return bad('ไม่พบรหัสที่จะลบ');
@@ -87,13 +111,28 @@ export async function onRequestPost({ request, env }) {
       if (String(payload?.hint || '') !== maskPin(entries[index].pin)) {
         return bad('ข้อมูลบนหน้าจอไม่ตรงกับล่าสุด — โหลดหน้าใหม่แล้วลองอีกครั้ง');
       }
+      // Removing the last admin PIN would lock everyone out of admin screens
+      // — including this one — permanently (no admin left to add another).
+      if (entries[index].role === 'admin' && adminCount() <= 1) {
+        return bad('ต้องเหลือรหัสระดับแอดมินอย่างน้อย 1 ชุด');
+      }
       entries.splice(index, 1);
     } else if (action === 'rename') {
       const index = Number(payload?.index);
       if (!Number.isInteger(index) || index < 0 || index >= entries.length) return bad('ไม่พบรหัสที่จะแก้ชื่อ');
       entries[index] = { ...entries[index], label };
+    } else if (action === 'setRole') {
+      const index = Number(payload?.index);
+      if (!Number.isInteger(index) || index < 0 || index >= entries.length) return bad('ไม่พบรหัสที่จะแก้สิทธิ์');
+      const role = payload?.role === 'admin' ? 'admin' : 'staff';
+      // Same reasoning as remove: demoting the last admin locks out every
+      // admin screen, permanently, with nobody able to promote a PIN back.
+      if (entries[index].role === 'admin' && role !== 'admin' && adminCount() <= 1) {
+        return bad('ต้องเหลือรหัสระดับแอดมินอย่างน้อย 1 ชุด');
+      }
+      entries[index] = { ...entries[index], role };
     } else {
-      return bad('action ต้องเป็น add, remove หรือ rename');
+      return bad('action ต้องเป็น add, remove, rename หรือ setRole');
     }
 
     await setDocFields(env.FIRESTORE_PROJECT_ID, token, PATH, entriesToFields(entries));

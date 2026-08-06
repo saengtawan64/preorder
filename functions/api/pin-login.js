@@ -21,34 +21,22 @@ import { createFirebaseCustomToken } from '../_lib/google-auth.js';
 import { getAccessToken } from '../_lib/google-auth.js';
 import { getDocFields, setDocFields } from '../_lib/firestore-doc.js';
 import { readEntries, entriesToFields } from '../_lib/pins-store.js';
+import { timingSafeEquals as equals, throttlePath, isLockedOut, recordFailure, clearedFields } from '../_lib/pin-throttle.js';
+import { isCrossSite } from '../_lib/same-origin.js';
 
-const MAX_ATTEMPTS = 8;
-const LOCKOUT_MS = 15 * 60 * 1000;
 const UID = 'shop-staff'; // one shared identity, same as the old single account
 
-/** Hash the caller IP — enough to count attempts without storing addresses. */
-async function ipKey(ip) {
-  const digest = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(ip));
-  return [...new Uint8Array(digest)].slice(0, 8).map((b) => b.toString(16).padStart(2, '0')).join('');
-}
-
-/** Compare without an early exit, so timing doesn't leak how much matched. */
-function equals(a, b) {
-  if (a.length !== b.length) return false;
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
-  return diff === 0;
-}
-
 /**
- * The PIN list, from Firestore. Seeded once from the STAFF_PINS secret so the
- * PINs are never in this repo (which is public) — after that Firestore is the
- * source of truth and PINs can be changed without a redeploy.
+ * The PIN entries, from Firestore. Seeded once from the STAFF_PINS secret so
+ * the PINs are never in this repo (which is public) — after that Firestore is
+ * the source of truth and PINs can be changed without a redeploy. Seeded PINs
+ * default to the 'admin' role (see pins-store.js) so the first login after
+ * deploy is never accidentally locked out of anything.
  */
 async function loadPins(projectId, token, env) {
   const doc = await getDocFields(projectId, token, 'settings/pins');
   const stored = readEntries(doc);
-  if (stored.length > 0) return stored.map((entry) => entry.pin);
+  if (stored.length > 0) return stored;
 
   const seed = String(env.STAFF_PINS || '')
     .split(',')
@@ -57,16 +45,14 @@ async function loadPins(projectId, token, env) {
   if (seed.length === 0) return [];
 
   const now = new Date().toISOString();
-  await setDocFields(
-    projectId,
-    token,
-    'settings/pins',
-    entriesToFields(seed.map((pin, i) => ({ pin, label: `รหัสที่ ${i + 1}`, addedAtIso: now }))),
-  );
-  return seed;
+  const entries = seed.map((pin, i) => ({ pin, label: `รหัสที่ ${i + 1}`, addedAtIso: now, role: 'admin' }));
+  await setDocFields(projectId, token, 'settings/pins', entriesToFields(entries));
+  return entries;
 }
 
 export async function onRequestPost({ request, env }) {
+  if (isCrossSite(request)) return new Response('Forbidden', { status: 403 });
+
   let payload;
   try {
     payload = await request.json();
@@ -92,41 +78,38 @@ export async function onRequestPost({ request, env }) {
     const token = await getAccessToken(serviceAccount, 'https://www.googleapis.com/auth/datastore');
 
     // --- throttle -------------------------------------------------------
-    const key = await ipKey(request.headers.get('CF-Connecting-IP') || 'unknown');
-    const path = `settings/pinAttempts/entries/${key}`;
+    const path = await throttlePath(request, 'login');
     const record = await getDocFields(projectId, token, path);
-    const now = Date.now();
 
-    if (record?.lockedUntil && now < Number(record.lockedUntil)) {
+    if (isLockedOut(record)) {
       return Response.json({ ok: false, reason: 'throttled' }, { status: 429 });
     }
 
     // --- check ----------------------------------------------------------
-    const pins = await loadPins(projectId, token, env);
-    if (pins.length === 0) {
+    const entries = await loadPins(projectId, token, env);
+    if (entries.length === 0) {
       console.error('pin-login: no PINs configured (set the STAFF_PINS secret)');
       return new Response('Server not configured', { status: 500 });
     }
 
-    const matched = pins.some((candidate) => equals(candidate, pin));
+    const matched = entries.find((entry) => equals(entry.pin, pin));
 
     if (!matched) {
-      // A lockout that survives past the window resets rather than compounding.
-      const fails = (record?.lockedUntil && now >= Number(record.lockedUntil) ? 0 : Number(record?.fails || 0)) + 1;
-      await setDocFields(projectId, token, path, {
-        fails,
-        lockedUntil: fails >= MAX_ATTEMPTS ? now + LOCKOUT_MS : 0,
-        lastAtIso: new Date().toISOString(),
-      });
-      const locked = fails >= MAX_ATTEMPTS;
+      const { fields, locked, attemptsLeft } = recordFailure(record);
+      await setDocFields(projectId, token, path, fields);
       return Response.json(
-        { ok: false, reason: locked ? 'throttled' : 'invalid', attemptsLeft: Math.max(MAX_ATTEMPTS - fails, 0) },
+        { ok: false, reason: locked ? 'throttled' : 'invalid', attemptsLeft },
         { status: locked ? 429 : 401 },
       );
     }
 
-    if (record) await setDocFields(projectId, token, path, { fails: 0, lockedUntil: 0 });
+    if (record) await setDocFields(projectId, token, path, clearedFields);
 
+    // matched.role isn't embedded in the session token — the shop's login is
+    // one shared account (UID below), so a claim on it would only describe
+    // which PIN unlocked it once, not who's at the till from then on. Actual
+    // admin gating is a fresh step-up on each sensitive action instead; see
+    // functions/api/verify-admin-pin.js.
     const customToken = await createFirebaseCustomToken(serviceAccount, UID);
     return Response.json({ ok: true, token: customToken });
   } catch (error) {

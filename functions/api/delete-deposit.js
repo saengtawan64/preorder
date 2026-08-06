@@ -1,16 +1,21 @@
 /**
- * Cloudflare Pages Function: mark a deposit as received.
+ * Cloudflare Pages Function: soft-delete a deposit.
  *
- * A client-only status flip is what `firestore.rules` already allows, but
- * that rule is an exact field allowlist — a write that also set
- * `receivedAtIso` in the same update would be rejected. So this, like
- * follow-up, goes through the service account: it carries no business data,
- * only an id, and cannot change a name or an amount even by accident.
+ * Admin-only, gated by step-up (see functions/api/verify-admin-pin.js) rather
+ * than the caller's own session role — the shop's login is one shared
+ * account, so the session can't say who is actually at the till right now.
+ *
+ * firestore.rules refuses this write from the client entirely (see
+ * firestore.rules — deleting used to be a direct client write any signed-in
+ * user could make), so this, like mark-received and update-deposit, goes
+ * through the service account after checking the caller's ID token and a
+ * fresh elevation token together.
  */
 
 import { verifyFirebaseToken } from '../_lib/verify-firebase-token.js';
+import { verifyElevation } from '../_lib/elevation-token.js';
 import { getAccessToken } from '../_lib/google-auth.js';
-import { markReceivedFromWeb } from '../_lib/firestore-write.js';
+import { softDeleteFromWeb } from '../_lib/firestore-write.js';
 import { isCrossSite } from '../_lib/same-origin.js';
 
 export async function onRequestPost({ request, env }) {
@@ -21,6 +26,9 @@ export async function onRequestPost({ request, env }) {
 
   const claims = await verifyFirebaseToken(idToken, env.FIRESTORE_PROJECT_ID);
   if (!claims) return new Response('Unauthorized', { status: 401 });
+
+  const elevated = await verifyElevation(request.headers.get('X-Admin-Elevation'), env.ADMIN_ELEVATION_SECRET);
+  if (!elevated) return new Response('ต้องยืนยันรหัสแอดมินก่อน', { status: 403 });
 
   let payload;
   try {
@@ -37,12 +45,12 @@ export async function onRequestPost({ request, env }) {
   try {
     const serviceAccount = JSON.parse(env.GCP_SERVICE_ACCOUNT_KEY);
     const token = await getAccessToken(serviceAccount, 'https://www.googleapis.com/auth/datastore');
-    const result = await markReceivedFromWeb(env.FIRESTORE_PROJECT_ID, token, depositId);
+    const result = await softDeleteFromWeb(env.FIRESTORE_PROJECT_ID, token, depositId);
 
     if (!result.updated) return new Response('Deposit not found', { status: 404 });
     return Response.json(result);
   } catch (error) {
-    console.error('mark-received failed:', error);
+    console.error('delete-deposit failed:', error);
     return new Response('Upstream write failed', { status: 502 });
   }
 }

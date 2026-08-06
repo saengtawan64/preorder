@@ -243,6 +243,26 @@
       </div>
     </aside>
 
+    <!-- ADMIN STEP-UP — re-enter an admin PIN before a sensitive action
+         (PIN management, sales targets, CSV export, deleting a deposit).
+         Required every time, even on an already-signed-in session — the
+         shop's login is one shared account, so being signed in doesn't say
+         who is actually at the till right now. -->
+    <div id="admin-gate-overlay" class="drawer-overlay hidden"></div>
+    <div id="admin-gate" class="admin-gate hidden" role="dialog" aria-modal="true" aria-labelledby="admin-gate-title">
+      <div class="admin-gate-card">
+        <h3 id="admin-gate-title"><i data-lucide="shield-alert"></i> ยืนยันสิทธิ์แอดมิน</h3>
+        <p id="admin-gate-reason" class="text-muted"></p>
+        <input type="text" id="admin-gate-pin" inputmode="numeric" autocomplete="off"
+          maxlength="8" placeholder="รหัสแอดมิน" />
+        <small id="admin-gate-error" class="error-msg hidden"></small>
+        <div class="admin-gate-actions">
+          <button type="button" class="btn btn-outline" id="admin-gate-cancel">ยกเลิก</button>
+          <button type="button" class="btn btn-primary" id="admin-gate-submit">ยืนยัน</button>
+        </div>
+      </div>
+    </div>
+
     <div id="toast-container" class="toast-container"></div>
   </div>
 </body>

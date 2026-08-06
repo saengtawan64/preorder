@@ -4,19 +4,19 @@ import { createIcons } from 'lucide';
 
 import { appIcons } from './icons.js';
 import { getFirebaseConfig } from './config.js';
-import { onAuthChange, signInWithPin, signOutUser, getIdToken } from './auth.js';
+import { onAuthChange, signInWithPin, signOutUser, getIdToken, verifyAdminPin } from './auth.js';
 import {
   initFirebase,
-  softDeleteDeposit,
   subscribeDeposits,
   addDeposit,
 } from './firebase.js';
 import { markReceived } from './received.js';
+import { deleteDeposit } from './deposit-admin.js';
 import { persistTheme, resetOnSignOut, state } from './state.js';
 import { fetchSales, fetchTargets, saveTargets, DEFAULT_TARGETS, BRANDS } from './sales.js';
 import { renderSalesDashboard } from './sales-view.js';
 import { renderInstallmentShell, renderInstallmentResults } from './installment.js';
-import { fetchPins, addPin, removePin, renamePin } from './pins.js';
+import { fetchPins, addPin, removePin, renamePin, setPinRole } from './pins.js';
 import { renderPins } from './pins-view.js';
 import { agingSummary, agingTone, daysHeld } from './aging.js';
 import { timelineModel } from './timeline.js';
@@ -103,6 +103,14 @@ const el = {
   metricAgingSub: document.getElementById('metric-aging-sub'),
 
   toastContainer: document.getElementById('toast-container'),
+
+  adminGateOverlay: document.getElementById('admin-gate-overlay'),
+  adminGate: document.getElementById('admin-gate'),
+  adminGateReason: document.getElementById('admin-gate-reason'),
+  adminGatePin: document.getElementById('admin-gate-pin'),
+  adminGateError: document.getElementById('admin-gate-error'),
+  adminGateSubmit: document.getElementById('admin-gate-submit'),
+  adminGateCancel: document.getElementById('admin-gate-cancel'),
 };
 
 function refreshIcons() {
@@ -204,10 +212,42 @@ function stopDepositsFeed() {
   resetOnSignOut();
 }
 
+/* ------------------------------------------------------- inactivity lock -- */
+
+// A staff tablet left unattended on the counter is the exact scenario the
+// admin step-up exists for too — this closes the wider gap of the *whole
+// session* staying open indefinitely. 15 minutes balances that against staff
+// who are on this app all day and would find a shorter timer a nuisance.
+const IDLE_LIMIT_MS = 15 * 60 * 1000;
+let idleTimer = null;
+
+function resetIdleTimer() {
+  if (!state.isSignedIn) return;
+  clearTimeout(idleTimer);
+  idleTimer = setTimeout(async () => {
+    await signOutUser();
+    clearAdminElevation();
+    toast('ออกจากระบบอัตโนมัติ — ไม่มีการใช้งานนาน 15 นาที', 'info');
+  }, IDLE_LIMIT_MS);
+}
+
+function stopIdleTimer() {
+  clearTimeout(idleTimer);
+  idleTimer = null;
+}
+
+// Passive, so this never competes with scroll/touch handling — any real
+// interaction resets the clock, whether or not it's a signed-in session yet
+// (resetIdleTimer() itself is a no-op until state.isSignedIn is true).
+for (const type of ['pointerdown', 'keydown', 'touchstart', 'wheel']) {
+  document.addEventListener(type, resetIdleTimer, { passive: true });
+}
+
 function showApp() {
   el.authGate.classList.add('hidden');
   el.appContent.classList.remove('hidden');
   startDepositsFeed();
+  resetIdleTimer();
 }
 
 function showGate() {
@@ -218,6 +258,8 @@ function showGate() {
   el.authGateError.classList.add('hidden');
   resetPin();
   stopDepositsFeed();
+  stopIdleTimer();
+  clearAdminElevation();
 }
 
 // Firebase must be initialised before anything touches auth or Firestore.
@@ -315,8 +357,105 @@ document.addEventListener('keydown', (event) => {
 
 el.logoutBtn.addEventListener('click', async () => {
   await signOutUser();
+  clearAdminElevation();
   toast('ออกจากระบบเรียบร้อยแล้ว', 'info');
 });
+
+/* ------------------------------------------------------- admin step-up --- */
+
+/**
+ * Proof of a recent admin-PIN entry, cached in memory only — never
+ * localStorage/sessionStorage, so it can't survive a reload and dies the
+ * moment the tab closes, same as the session itself (see src/auth.js). Reused
+ * across admin actions for ADMIN_GRACE so opening PIN management, then
+ * editing sales targets a minute later, doesn't ask twice — but it always
+ * expires with the server-issued token, never past it.
+ */
+let adminElevation = null; // { token, expiresAtMs }
+
+function clearAdminElevation() {
+  adminElevation = null;
+}
+
+function adminGateError(message) {
+  el.adminGateError.textContent = message || '';
+  el.adminGateError.classList.toggle('hidden', !message);
+}
+
+/**
+ * Resolve the current admin-elevation token, prompting for an admin PIN
+ * first if there is no cached one or it has expired. This is the "isolated
+ * admin portal" gate: it runs before PIN management, saving sales targets,
+ * exporting CSV, or deleting a deposit — every time, even on a session that
+ * was itself opened with an admin PIN, because the shop's login is one
+ * shared account and the session alone can't say who's at the till right
+ * now (see functions/api/verify-admin-pin.js).
+ *
+ * Resolves the elevation token string on success, or null if the user
+ * cancelled or failed to verify.
+ */
+function requireAdminStepUp(reason) {
+  if (adminElevation && Date.now() < adminElevation.expiresAtMs) {
+    return Promise.resolve(adminElevation.token);
+  }
+
+  return new Promise((resolve) => {
+    el.adminGateReason.textContent = reason;
+    adminGateError('');
+    el.adminGatePin.value = '';
+    el.adminGateOverlay.classList.remove('hidden');
+    el.adminGate.classList.remove('hidden');
+    el.adminGatePin.focus();
+
+    let settled = false;
+    const finish = (result) => {
+      if (settled) return;
+      settled = true;
+      el.adminGateOverlay.classList.add('hidden');
+      el.adminGate.classList.add('hidden');
+      el.adminGateSubmit.removeEventListener('click', onSubmit);
+      el.adminGateCancel.removeEventListener('click', onCancel);
+      el.adminGateOverlay.removeEventListener('click', onCancel);
+      el.adminGatePin.removeEventListener('keydown', onKeydown);
+      resolve(result);
+    };
+
+    const onCancel = () => finish(null);
+
+    const onSubmit = async () => {
+      const pin = el.adminGatePin.value.trim();
+      if (!/^\d{4,8}$/.test(pin)) {
+        adminGateError('กรอกรหัสให้ครบ');
+        return;
+      }
+      el.adminGateSubmit.disabled = true;
+      const result = await verifyAdminPin(pin);
+      el.adminGateSubmit.disabled = false;
+
+      if (result.ok) {
+        adminElevation = { token: result.elevation, expiresAtMs: result.expiresAtMs };
+        finish(result.elevation);
+        return;
+      }
+      adminGateError({
+        throttled: 'ลองผิดหลายครั้งเกินไป กรุณารอ 15 นาที',
+        offline: 'เชื่อมต่อเซิร์ฟเวอร์ไม่ได้',
+      }[result.reason] || 'รหัสไม่ถูกต้อง หรือไม่ใช่รหัสระดับแอดมิน');
+      el.adminGatePin.value = '';
+      el.adminGatePin.focus();
+    };
+
+    const onKeydown = (event) => {
+      if (event.key === 'Enter') onSubmit();
+      else if (event.key === 'Escape') onCancel();
+    };
+
+    el.adminGateSubmit.addEventListener('click', onSubmit);
+    el.adminGateCancel.addEventListener('click', onCancel);
+    el.adminGateOverlay.addEventListener('click', onCancel);
+    el.adminGatePin.addEventListener('keydown', onKeydown);
+  });
+}
 
 /* ------------------------------------------------------------ list state -- */
 
@@ -698,7 +837,14 @@ async function commitTargets() {
   try {
     const idToken = await getIdToken();
     if (!idToken) throw new Error('เซสชันหมดอายุ กรุณาเข้าระบบใหม่');
-    sales.targets = await saveTargets(idToken, values);
+    // Re-checked here too, not just when entering edit mode — the grace
+    // window may have lapsed while the form was open.
+    const elevation = await requireAdminStepUp('บันทึกเป้ายอดขาย');
+    if (!elevation) {
+      button.disabled = false;
+      return;
+    }
+    sales.targets = await saveTargets(idToken, elevation, values);
     sales.editingTargets = false;
     showSales();
     toast('บันทึกเป้ายอดขายเรียบร้อย', 'success');
@@ -712,12 +858,17 @@ async function commitTargets() {
 }
 
 /* Delegated so the controls survive every dashboard re-render. */
-el.salesContainer.addEventListener('click', (event) => {
+el.salesContainer.addEventListener('click', async (event) => {
   if (event.target.closest('#sales-retry') || event.target.closest('#sales-refresh')) {
     showSales({ force: true });
     return;
   }
   if (event.target.closest('#targets-edit')) {
+    // Setting targets is a financial decision — gated the same way PIN
+    // management is, even though viewing progress against them (above) is
+    // normal staff work.
+    const elevation = await requireAdminStepUp('แก้ไขเป้ายอดขาย');
+    if (!elevation) return;
     sales.editingTargets = true;
     showSales();
     return;
@@ -821,13 +972,19 @@ function pinError(message) {
   box.classList.toggle('hidden', !message);
 }
 
-/** Every PIN action ends the same way: apply the fresh list, or show why not. */
+/**
+ * Every PIN action ends the same way: prove a fresh admin step-up, apply the
+ * fresh list, or show why not. PIN management is admin-only end to end — see
+ * requireAdminStepUp() and functions/api/pins.js.
+ */
 async function pinAction(run) {
   pinError('');
   try {
     const idToken = await getIdToken();
     if (!idToken) throw new Error('เซสชันหมดอายุ กรุณาเข้าระบบใหม่');
-    const result = await run(idToken);
+    const elevation = await requireAdminStepUp('จัดการรหัสปลดล็อก');
+    if (!elevation) return false; // cancelled — not an error, say nothing
+    const result = await run(idToken, elevation);
     pinsState.pins = result.pins || [];
     pinsState.loaded = true;
     return true;
@@ -841,10 +998,22 @@ async function pinAction(run) {
 
 async function showPins() {
   el.pinsContainer.classList.remove('hidden');
+
+  // Re-checked on every visit, not just the first: pinsState.loaded staying
+  // true across a whole tab session would let anyone who picks up an
+  // already-open device skip straight to cached PIN data once the step-up
+  // grace window has lapsed. requireAdminStepUp() only re-prompts once that
+  // window is actually gone, so this doesn't nag on a quick tab switch.
+  const elevation = await requireAdminStepUp('เข้าหน้าจัดการรหัส');
+  if (!elevation) {
+    setListMode('pending');
+    return;
+  }
+
   if (!pinsState.loaded) {
     pinsState.loading = true;
     drawPins();
-    await pinAction((token) => fetchPins(token));
+    await pinAction((token, elev) => fetchPins(token, elev));
   }
   drawPins();
 }
@@ -857,7 +1026,9 @@ el.pinsContainer.addEventListener('click', async (event) => {
     if (!confirm(`ลบรหัส "${label}" ใช่หรือไม่?\nคนที่ใช้รหัสนี้จะเข้าระบบไม่ได้ทันที`)) return;
     const index = Number(row.getAttribute('data-index'));
     const hint = row.getAttribute('data-hint');
-    if (await pinAction((token) => removePin(token, index, hint))) toast('ลบรหัสแล้ว', 'success');
+    if (await pinAction((token, elevation) => removePin(token, elevation, index, hint))) {
+      toast('ลบรหัสแล้ว', 'success');
+    }
     drawPins();
     return;
   }
@@ -867,7 +1038,25 @@ el.pinsContainer.addEventListener('click', async (event) => {
     const current = row.querySelector('.pin-row-label').textContent;
     const next = prompt('ตั้งชื่อรหัสนี้ (เช่น เจ้าของร้าน, พนักงานหน้าร้าน)', current);
     if (next === null) return;
-    if (await pinAction((token) => renamePin(token, index, next.trim()))) toast('เปลี่ยนชื่อแล้ว', 'success');
+    if (await pinAction((token, elevation) => renamePin(token, elevation, index, next.trim()))) {
+      toast('เปลี่ยนชื่อแล้ว', 'success');
+    }
+    drawPins();
+    return;
+  }
+
+  if (event.target.closest('.pin-role-btn')) {
+    const index = Number(row.getAttribute('data-index'));
+    const current = row.getAttribute('data-role');
+    const next = current === 'admin' ? 'staff' : 'admin';
+    const label = row.querySelector('.pin-row-label').textContent;
+    const question = next === 'admin'
+      ? `ตั้งรหัส "${label}" เป็นระดับแอดมินใช่หรือไม่?\nจะเข้าจัดการรหัส/เป้ายอดขาย/CSV/ลบรายการได้`
+      : `ลดรหัส "${label}" เป็นระดับพนักงานใช่หรือไม่?\nจะเข้าเมนูแอดมินไม่ได้อีก`;
+    if (!confirm(question)) return;
+    if (await pinAction((token, elevation) => setPinRole(token, elevation, index, next))) {
+      toast(next === 'admin' ? 'ตั้งเป็นแอดมินแล้ว' : 'ลดเป็นพนักงานแล้ว', 'success');
+    }
     drawPins();
     return;
   }
@@ -876,13 +1065,14 @@ el.pinsContainer.addEventListener('click', async (event) => {
 
   const pinInput = el.pinsContainer.querySelector('#pin-new');
   const labelInput = el.pinsContainer.querySelector('#pin-new-label');
+  const roleSelect = el.pinsContainer.querySelector('#pin-new-role');
   const pin = pinInput.value.trim();
   if (!/^\d{5}$/.test(pin)) {
     pinError('รหัสต้องเป็นตัวเลข 5 หลัก');
     pinInput.focus();
     return;
   }
-  if (await pinAction((token) => addPin(token, pin, labelInput.value.trim()))) {
+  if (await pinAction((token, elevation) => addPin(token, elevation, pin, labelInput.value.trim(), roleSelect.value))) {
     toast('เพิ่มรหัสแล้ว ใช้ปลดล็อกได้ทันที', 'success');
   }
   drawPins();
@@ -1048,9 +1238,15 @@ el.groupedDatesContainer.addEventListener('click', async (event) => {
   const id = deleteBtn.getAttribute('data-id');
   if (!confirm('คุณต้องการลบรายการมัดจำนี้ใช่หรือไม่?\nรายการจะย้ายไปเมนู "ลบแล้ว" ไม่ได้หายไปจากชีต')) return;
 
-  const deleted = await softDeleteDeposit(id);
-  if (!deleted) {
-    toast('ลบรายการไม่สำเร็จ', 'danger');
+  const elevation = await requireAdminStepUp('ลบรายการมัดจำ');
+  if (!elevation) return;
+
+  try {
+    const idToken = await getIdToken();
+    if (!idToken) throw new Error('เซสชันหมดอายุ กรุณาเข้าระบบใหม่');
+    await deleteDeposit(idToken, elevation, id);
+  } catch (error) {
+    toast(error.message || 'ลบรายการไม่สำเร็จ', 'danger');
     return;
   }
   // The snapshot listener re-renders with the record moved to "ลบแล้ว".
@@ -1311,11 +1507,22 @@ el.searchClearBtn.addEventListener('click', () => {
 
 const CSV_STATUS = { pending: 'รอการจัดส่งสินค้า', received: 'รับสินค้าแล้ว', deleted: 'ลบแล้ว' };
 
-el.exportCsvBtn.addEventListener('click', () => {
+el.exportCsvBtn.addEventListener('click', async () => {
   if (state.deposits.length === 0) {
     toast('ไม่มีข้อมูลสำหรับส่งออก', 'warning');
     return;
   }
+
+  // Exporting customer names and phone numbers to a file is admin-only by
+  // policy — the same step-up as PIN management and sales targets. Worth
+  // being upfront about the limit here: this data is already loaded in the
+  // browser for the list screen every signed-in staff member uses, so this
+  // gate stops the *export button*, not a determined person opening
+  // DevTools and reading `state.deposits` directly. Real data-access control
+  // would mean staff never receiving this data in the first place, which
+  // isn't compatible with the deposit list being core staff work.
+  const elevation = await requireAdminStepUp('ส่งออกไฟล์ CSV');
+  if (!elevation) return;
 
   const header = 'ลำดับ,วันที่และเวลา,ชื่อจริง,ชื่อเล่น,เบอร์โทร,สินค้าที่มัดจำ,ยอดมัดจำ (บาท),สถานะ';
   const lines = state.deposits.map((record, index) =>

@@ -2,7 +2,7 @@
  * The shape of `settings/pins`, shared by the login check and the management
  * screen so the two can never disagree about what a stored PIN looks like.
  *
- * Current shape:  { entries: [{ pin, label, addedAtIso }], updatedAtIso }
+ * Current shape:  { entries: [{ pin, label, addedAtIso, role }], updatedAtIso }
  * Legacy shape:   { pins: ["10005", ...] }
  *
  * The legacy array is what the first version seeded from the STAFF_PINS secret.
@@ -10,6 +10,11 @@
  * `entriesToFields` empties it — otherwise a PIN removed from `entries` would
  * live on in `pins`, and a later reader that preferred the old field would
  * silently accept a PIN the shop believes it deleted.
+ *
+ * `role` is 'admin' or 'staff'. Any entry written before roles existed (or the
+ * legacy `pins` array) has no role field — those default to 'admin' so that
+ * shipping this feature never silently locks out whoever is already using an
+ * existing PIN; the shop can then tag individual PINs down to 'staff'.
  */
 
 /** Every stored PIN, normalised, whichever shape the document is in. */
@@ -21,10 +26,11 @@ export function readEntries(doc) {
         pin: String(entry.pin),
         label: String(entry.label || ''),
         addedAtIso: String(entry.addedAtIso || ''),
+        role: entry.role === 'staff' ? 'staff' : 'admin',
       }));
   }
   if (Array.isArray(doc?.pins)) {
-    return doc.pins.filter(Boolean).map((pin) => ({ pin: String(pin), label: '', addedAtIso: '' }));
+    return doc.pins.filter(Boolean).map((pin) => ({ pin: String(pin), label: '', addedAtIso: '', role: 'admin' }));
   }
   return [];
 }
@@ -36,6 +42,7 @@ export function entriesToFields(entries) {
       pin: entry.pin,
       label: entry.label || '',
       addedAtIso: entry.addedAtIso || '',
+      role: entry.role === 'staff' ? 'staff' : 'admin',
     })),
     pins: [],
     updatedAtIso: new Date().toISOString(),
@@ -57,4 +64,5 @@ export const toPublic = (entries) =>
     label: entry.label,
     hint: maskPin(entry.pin),
     addedAtIso: entry.addedAtIso,
+    role: entry.role === 'staff' ? 'staff' : 'admin',
   }));

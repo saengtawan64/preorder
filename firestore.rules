@@ -43,27 +43,25 @@ service cloud.firestore {
                && data.timestamp is string    && data.timestamp.size() <= 60;
       }
 
-      // A record's identity fields never change after creation. Only status
-      // fields (soft delete, sync bookkeeping) may be updated — this is what
-      // lets the web UI "delete" a row without being able to rewrite history,
-      // and what the Sheet-sync webhook uses to update an existing record.
-      function isWellFormedUpdate(data) {
-        let unchanged = ['depositId', 'firstName', 'nickname', 'phoneNumber',
-                          'depositItem', 'depositAmount', 'timestamp',
-                          'createdAtIso', 'source', 'createdAt'];
-        return unchanged.toSet().difference(data.diff(resource.data).affectedKeys()) == unchanged.toSet()
-               || data.diff(resource.data).affectedKeys().hasOnly(['deletedAt', 'updatedAtIso'])
-               // Marking a deposit received (customer collected the goods).
-               || (data.diff(resource.data).affectedKeys().hasOnly(['status', 'updatedAtIso'])
-                   && data.status in ['pending', 'received']);
-      }
-
       allow read: if isSignedIn();
       allow create: if isSignedIn() && isWellFormedCreate(request.resource.data);
-      allow update: if isSignedIn() && isWellFormedUpdate(request.resource.data);
 
-      // No hard deletes from the client — "delete" is soft (see update rule
-      // above), so a record's id and row position never move.
+      // No direct client updates at all. This used to allow a signed-in
+      // client to flip status or soft-delete directly, but nothing in the app
+      // actually does that anymore — marking received (functions/api/mark-received.js),
+      // editing (functions/api/update-deposit.js), follow-up stamps
+      // (functions/api/follow-up.js) and now soft-delete
+      // (functions/api/delete-deposit.js) all go through a Cloudflare
+      // Function with a verified ID token, writing via the service account
+      // (which bypasses these rules — see functions/_lib/firestore-write.js).
+      // Denying it here closes a write path the shared-login model can't
+      // actually secure (this rule has no way to tell a staff session from an
+      // admin one) and that the app no longer needs.
+      allow update: if false;
+
+      // No hard deletes from the client either — "delete" is soft (see
+      // functions/api/delete-deposit.js), so a record's id and row position
+      // never move.
       allow delete: if false;
     }
 

@@ -17,7 +17,6 @@ import { getApps, initializeApp } from 'firebase/app';
 import {
   getFirestore,
   setDoc,
-  updateDoc,
   doc,
   collection,
   serverTimestamp,
@@ -96,29 +95,6 @@ export async function addDeposit(record) {
     return record.depositId;
   } catch (error) {
     console.error('Error adding document to Firestore:', error);
-    return false;
-  }
-}
-
-/**
- * Soft-delete a deposit: marks it deleted instead of removing the document.
- *
- * A hard delete would let the server-side Sheet sync reuse the row for a
- * future record, or leave a dangling depositId if the Sheet update lands
- * after the delete. Marking it keeps the row identity stable both ways.
- */
-export async function softDeleteDeposit(id) {
-  if (!db) return false;
-  if (typeof id !== 'string' || id === '') return false;
-
-  try {
-    await updateDoc(doc(db, COLLECTION, id), {
-      deletedAt: new Date().toISOString(),
-      updatedAtIso: new Date().toISOString(),
-    });
-    return true;
-  } catch (error) {
-    console.error('Error deleting document from Firestore:', error);
     return false;
   }
 }
